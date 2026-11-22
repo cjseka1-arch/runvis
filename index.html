@@ -60,7 +60,7 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini AI 두뇌 + 연속 음성 비서</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini AI 두뇌 + 실시간 검색 + 연속 음성 비서</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-yellow-500/50 text-yellow-300 font-bold">
             초기화중...
           </span>
@@ -136,7 +136,7 @@
           <input
             id="textInput"
             type="text"
-            placeholder="글자로 말 걸기 (예: 민준이 오늘 결석 처리해줘)"
+            placeholder="글자로 말 걸기 (예: 이번 수능 수학 1등급 컷 알려줘)"
             class="flex-1 bg-[#111111] border border-[#333333] focus:border-white rounded-md px-3 py-2 text-xs sm:text-sm text-white outline-none"
           />
           <button
@@ -234,7 +234,6 @@
 
     var EMBEDDED_API_KEY = 'AIzaSyBdlBlNwte3C5xU5ca7Y41pbnt-E16J0gw';
     var DEFAULT_WAKE_REPLY = '네, 잘생긴 원장님~ 말씀하세요!';
-    // ★ 수정 1: "헤이" 제거 및 오인식 보정 단어 확장
     var DEFAULT_WAKE_ALIASES = '런비스, 런 비스, 런미스, 럼비스, 연비스, 원피스, 원 비스, 던비스, 덤비스';
     var GEMINI_MODEL = 'gemini-2.5-flash';
 
@@ -324,7 +323,7 @@
         btn.classList.add('mic-active-chat');
         iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
         title.textContent = '대화중 — 편하게 말씀하세요!';
-        sub.textContent = '출결·리포트 지시나 일상 대화를 연속으로 이어갑니다.';
+        sub.textContent = '출결·리포트 지시나 실시간 검색 질문을 이어갑니다.';
         badge.textContent = 'LIVE';
         badge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
       } else if (mode === 'THINKING') {
@@ -430,7 +429,6 @@
       }, 45000);
     }
 
-    // ★ 수정 2: 연속 듣기(continuous = true)로 이어폰 뚜뚜 소리 방지
     function restartRecognitionCleanly(delayMs) {
       clearTimeout(restartTimer);
       if (!isAssistantOn || isSpeaking) return;
@@ -532,7 +530,7 @@
         var wake = matchWakePhrase(text);
         if (!wake.matched) {
           document.getElementById('liveStatusText').textContent = '호출어 대기중 (들린 말: "' + text + '")';
-          return; // ★ 마이크를 끄지 않고 계속 열어둠 (뚜뚜 소리 방지)
+          return;
         }
 
         appendChat('user', text);
@@ -573,30 +571,31 @@
       }
     }
 
-    // ★ 수정 3: 자연스러운 구어체 말투 + 응답 속도 개선 (maxOutputTokens: 300)
+    // ★ 구글 실시간 검색 + 응답 속도 최적화 + JSON 안전 파싱 적용
     function processWithGeminiAI(userText) {
       appendChat('user', userText);
       var prevMode = assistantMode;
-      setAssistantMode('THINKING', '런비스가 생각하고 있습니다...');
+      setAssistantMode('THINKING', '런비스가 검색 및 답변을 준비 중입니다...');
 
       chatHistory.push({ role: 'user', parts: [{ text: userText }] });
       if (chatHistory.length > 16) chatHistory = chatHistory.slice(-16);
 
       var apiKey = getApiKey();
       var systemPrompt = '당신은 런수학학원 원장님의 전담 비서 런비스입니다. ' +
-        '기계적인 존댓말("요청하신 작업이 완료되었습니다" 등)은 절대 쓰지 말고, 센스 있고 다정한 실제 사람 비서처럼 자연스러운 구어체로 짧게 1~2문장만 답하세요. ' +
-        '예시: "네 원장님, 민준이 결석 처리해 둘게요!", "알겠어요, 바로 정리해 놓겠습니다." ' +
-        '반드시 순수 JSON으로만 응답하세요: ' +
-        '{"reply": "구어체 답변(1~2문장)", "actions": [{"type": "task 또는 approve_all", "student": "학생이름", "category": "결석|보강|시간변경|과제체크|학부모 리포트", "summary": "업무 요약 또는 학부모 문자 초안", "isReport": true}]} ' +
-        '일상 대화면 actions는 []로 비우고, 출결/보강/과제/리포트 지시면 actions에 task를 넣고, 승인/발송 지시면 approve_all을 넣으세요.';
+        '기계적인 존댓말("요청하신 작업이 완료되었습니다" 등)은 절대 쓰지 말고, 센스 있고 다정한 실제 사람 비서처럼 자연스러운 구어체로 짧게 1~3문장만 답하세요. ' +
+        '수능 등급컷, 날씨, 최신 뉴스 등 최신 정보가 필요하면 반드시 구글 검색을 활용해 정확히 답하세요. ' +
+        '반드시 마크다운 코드블록(```)이나 앞뒤 설명 없이 순수 JSON 객체 하나만 응답하세요: ' +
+        '{"reply": "구어체 답변(1~3문장)", "actions": [{"type": "task 또는 approve_all", "student": "학생이름", "category": "결석|보강|시간변경|과제체크|학부모 리포트", "summary": "업무 요약 또는 학부모 문자 초안", "isReport": true}]} ' +
+        '일상 대화나 검색 답변이면 actions는 []로 비우고, 출결/보강/과제/리포트 지시면 actions에 task를 넣고, 승인/발송 지시면 approve_all을 넣으세요.';
 
       var payloadObj = {
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents: chatHistory,
+        tools: [{ google_search: {} }],
         generationConfig: {
           temperature: 0.65,
-          maxOutputTokens: 300,
-          responseMimeType: 'application/json'
+          maxOutputTokens: 1024,
+          thinkingConfig: { thinkingBudget: 0 }
         }
       };
 
@@ -604,8 +603,23 @@
         try {
           var data = JSON.parse(rawResponseText);
           if (data.error) throw new Error(data.error.message || 'API 오류');
-          var rawText = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) || '{}';
-          var parsed = JSON.parse(rawText);
+
+          var parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+          var rawText = parts.map(function(p) { return p.text || ''; }).join('').trim();
+
+          var parsed = { reply: rawText || '네 원장님, 바로 확인했어요!', actions: [] };
+          try {
+            var jsonMatch = rawText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              parsed = JSON.parse(jsonMatch[0]);
+            }
+          } catch (parseErr) {
+            parsed = {
+              reply: rawText.replace(/```json|```/g, '').trim() || '네 원장님, 바로 확인했어요!',
+              actions: []
+            };
+          }
+
           var reply = parsed.reply || '네 원장님, 바로 확인했어요!';
           var actions = Array.isArray(parsed.actions) ? parsed.actions : [];
 
@@ -646,7 +660,7 @@
         }
       };
 
-      var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey);
+      var url = '[https://generativelanguage.googleapis.com/v1beta/models/](https://generativelanguage.googleapis.com/v1beta/models/)' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey);
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -684,7 +698,6 @@
       }
 
       isSpeaking = true;
-      // ★ 말하는 동안만 마이크 잠시 중단 (본인 목소리 인식 방지)
       if (recognition) {
         try { recognition.onend = null; recognition.stop(); } catch (e) {}
       }
@@ -718,7 +731,7 @@
         if (onDone) onDone();
       };
 
-      var estimatedMs = Math.min(15000, Math.max(2200, cleanText.length * 145));
+      var estimatedMs = Math.min(20000, Math.max(2200, cleanText.length * 145));
       var safetyTimer = setTimeout(finishSpeak, estimatedMs);
 
       utter.onend = finishSpeak;
