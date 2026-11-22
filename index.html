@@ -83,7 +83,7 @@
             </span>
             <div class="text-left">
               <div id="micBtnTitle" class="text-base font-bold text-white">런비스 음성 비서 켜기</div>
-              <div id="micBtnSub" class="text-xs text-[#B3B3B3]">"헤이 런비스"로 부르면 대답 후 이어서 대화를 듣습니다.</div>
+              <div id="micBtnSub" class="text-xs text-[#B3B3B3]">"런비스"라고 부르면 대답 후 이어서 대화를 듣습니다.</div>
             </div>
           </div>
           <span id="micSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -127,7 +127,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요, 원장님! <strong>[인사 테스트]</strong>를 누르시거나 <strong>[런비스 음성 비서 켜기]</strong> 후 <strong>"헤이 런비스"</strong>라고 불러주세요.
+              안녕하세요, 원장님! <strong>[인사 테스트]</strong>를 누르시거나 <strong>[런비스 음성 비서 켜기]</strong> 후 <strong>"런비스"</strong>라고 불러주세요.
             </div>
           </div>
         </div>
@@ -234,7 +234,8 @@
 
     var EMBEDDED_API_KEY = 'AIzaSyBdlBlNwte3C5xU5ca7Y41pbnt-E16J0gw';
     var DEFAULT_WAKE_REPLY = '네, 잘생긴 원장님~ 말씀하세요!';
-    var DEFAULT_WAKE_ALIASES = '헤이 런비스, 헤이 런 비스, 헤이 원피스, 헤이 원 비스, 헤이런비스, 런비스, 원피스';
+    // ★ 수정 1: "헤이" 제거 및 오인식 보정 단어 확장
+    var DEFAULT_WAKE_ALIASES = '런비스, 런 비스, 런미스, 럼비스, 연비스, 원피스, 원 비스, 던비스, 덤비스';
     var GEMINI_MODEL = 'gemini-2.5-flash';
 
     var isAssistantOn = false;
@@ -301,7 +302,7 @@
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181818] border border-[#333333] text-xs font-bold';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '런비스 음성 비서 켜기';
-        sub.textContent = '"헤이 런비스"로 부르면 대답 후 이어서 대화를 듣습니다.';
+        sub.textContent = '"런비스"라고 부르면 대답 후 이어서 대화를 듣습니다.';
         badge.textContent = 'OFF';
         badge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
       } else if (mode === 'STANDBY') {
@@ -311,7 +312,7 @@
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#241415] border border-[#E50914]/70 text-xs font-bold';
         btn.classList.add('mic-active-standby');
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#E50914]/20 text-[#E50914] flex items-center justify-center shrink-0';
-        title.textContent = '호출어 대기중 ("헤이 런비스")';
+        title.textContent = '호출어 대기중 ("런비스")';
         sub.textContent = '부르시면 대답 후 연속 대화 모드로 전환됩니다.';
         badge.textContent = 'ON';
         badge.className = 'px-3 py-1 rounded bg-[#E50914] text-white text-xs font-bold shrink-0';
@@ -350,7 +351,7 @@
 
     function runWakeTest() {
       var reply = getWakeReply();
-      appendChat('user', '헤이 런비스 (인사 테스트)');
+      appendChat('user', '런비스 (인사 테스트)');
       appendChat('assistant', reply);
       document.getElementById('liveStatusText').textContent = '인사 테스트 실행됨: ' + reply;
       if (isAssistantOn) {
@@ -392,7 +393,7 @@
       }
 
       isAssistantOn = true;
-      setAssistantMode('STANDBY', '호출어 대기중: "헤이 런비스"라고 불러주세요.');
+      setAssistantMode('STANDBY', '호출어 대기중: "런비스"라고 불러주세요.');
       restartRecognitionCleanly(50);
     }
 
@@ -424,11 +425,12 @@
       clearTimeout(chatIdleTimer);
       chatIdleTimer = setTimeout(function() {
         if (isAssistantOn && assistantMode === 'CHAT') {
-          setAssistantMode('STANDBY', '대기 모드로 전환되었습니다. 다시 "헤이 런비스"로 불러주세요.');
+          setAssistantMode('STANDBY', '대기 모드로 전환되었습니다. 다시 "런비스"로 불러주세요.');
         }
       }, 45000);
     }
 
+    // ★ 수정 2: 연속 듣기(continuous = true)로 이어폰 뚜뚜 소리 방지
     function restartRecognitionCleanly(delayMs) {
       clearTimeout(restartTimer);
       if (!isAssistantOn || isSpeaking) return;
@@ -451,7 +453,7 @@
 
         var rec = new SR();
         rec.lang = 'ko-KR';
-        rec.continuous = false;
+        rec.continuous = true;
         rec.interimResults = true;
         rec.maxAlternatives = 1;
 
@@ -477,13 +479,12 @@
           }
 
           if (finalStr.trim()) {
-            try { rec.onend = null; rec.stop(); } catch (e) {}
-            isRecognizing = false;
             handleSpokenSentence(finalStr.trim());
           }
         };
 
         rec.onerror = function(event) {
+          if (event.error === 'no-speech') return;
           isRecognizing = false;
           if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             updateMicDiag('마이크 권한 차단됨', false);
@@ -498,7 +499,7 @@
         rec.onend = function() {
           isRecognizing = false;
           if (isAssistantOn && !isSpeaking && assistantMode !== 'THINKING') {
-            restartRecognitionCleanly(350);
+            restartRecognitionCleanly(500);
           }
         };
 
@@ -506,7 +507,7 @@
         try {
           rec.start();
         } catch (e) {
-          restartRecognitionCleanly(600);
+          restartRecognitionCleanly(800);
         }
       }, delayMs);
     }
@@ -531,8 +532,7 @@
         var wake = matchWakePhrase(text);
         if (!wake.matched) {
           document.getElementById('liveStatusText').textContent = '호출어 대기중 (들린 말: "' + text + '")';
-          restartRecognitionCleanly(300);
-          return;
+          return; // ★ 마이크를 끄지 않고 계속 열어둠 (뚜뚜 소리 방지)
         }
 
         appendChat('user', text);
@@ -544,7 +544,7 @@
           speakText(reply, function() {
             if (isAssistantOn) {
               setAssistantMode('CHAT', '🎤 말씀하세요... 듣고 있습니다!');
-              restartRecognitionCleanly(450);
+              restartRecognitionCleanly(350);
             }
           });
         } else {
@@ -561,8 +561,8 @@
           appendChat('assistant', bye);
           speakText(bye, function() {
             if (isAssistantOn) {
-              setAssistantMode('STANDBY', '호출어 대기중: "헤이 런비스"라고 불러주세요.');
-              restartRecognitionCleanly(450);
+              setAssistantMode('STANDBY', '호출어 대기중: "런비스"라고 불러주세요.');
+              restartRecognitionCleanly(350);
             }
           });
           return;
@@ -573,6 +573,7 @@
       }
     }
 
+    // ★ 수정 3: 자연스러운 구어체 말투 + 응답 속도 개선 (maxOutputTokens: 300)
     function processWithGeminiAI(userText) {
       appendChat('user', userText);
       var prevMode = assistantMode;
@@ -582,17 +583,19 @@
       if (chatHistory.length > 16) chatHistory = chatHistory.slice(-16);
 
       var apiKey = getApiKey();
-      var systemPrompt = '당신은 런수학학원 원장님의 전담 AI 비서 런비스(RUN-VIS)입니다. ' +
-        '원장님과 실제 사람 비서처럼 자연스럽고 재치 있고 다정하게 대화하세요. ' +
+      var systemPrompt = '당신은 런수학학원 원장님의 전담 비서 런비스입니다. ' +
+        '기계적인 존댓말("요청하신 작업이 완료되었습니다" 등)은 절대 쓰지 말고, 센스 있고 다정한 실제 사람 비서처럼 자연스러운 구어체로 짧게 1~2문장만 답하세요. ' +
+        '예시: "네 원장님, 민준이 결석 처리해 둘게요!", "알겠어요, 바로 정리해 놓겠습니다." ' +
         '반드시 순수 JSON으로만 응답하세요: ' +
-        '{"reply": "원장님께 들려드릴 구어체 한국어 답변(2~3문장)", "actions": [{"type": "task 또는 approve_all", "student": "학생이름", "category": "결석|보강|시간변경|과제체크|학부모 리포트", "summary": "업무 요약 또는 학부모 문자 초안", "isReport": true}]} ' +
+        '{"reply": "구어체 답변(1~2문장)", "actions": [{"type": "task 또는 approve_all", "student": "학생이름", "category": "결석|보강|시간변경|과제체크|학부모 리포트", "summary": "업무 요약 또는 학부모 문자 초안", "isReport": true}]} ' +
         '일상 대화면 actions는 []로 비우고, 출결/보강/과제/리포트 지시면 actions에 task를 넣고, 승인/발송 지시면 approve_all을 넣으세요.';
 
       var payloadObj = {
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents: chatHistory,
         generationConfig: {
-          temperature: 0.7,
+          temperature: 0.65,
+          maxOutputTokens: 300,
           responseMimeType: 'application/json'
         }
       };
@@ -603,7 +606,7 @@
           if (data.error) throw new Error(data.error.message || 'API 오류');
           var rawText = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) || '{}';
           var parsed = JSON.parse(rawText);
-          var reply = parsed.reply || '네 원장님, 말씀하신 내용 확인했습니다!';
+          var reply = parsed.reply || '네 원장님, 바로 확인했어요!';
           var actions = Array.isArray(parsed.actions) ? parsed.actions : [];
 
           chatHistory.push({ role: 'model', parts: [{ text: reply }] });
@@ -631,7 +634,7 @@
             speakText(reply, function() {
               if (isAssistantOn) {
                 setAssistantMode('CHAT', '🎤 말씀하세요... 이어서 듣고 있습니다!');
-                restartRecognitionCleanly(450);
+                restartRecognitionCleanly(350);
               }
             });
           } else {
@@ -681,6 +684,10 @@
       }
 
       isSpeaking = true;
+      // ★ 말하는 동안만 마이크 잠시 중단 (본인 목소리 인식 방지)
+      if (recognition) {
+        try { recognition.onend = null; recognition.stop(); } catch (e) {}
+      }
       updateMicDiag('🔊 런비스 말하는 중', false);
       if (isAssistantOn) setAssistantMode('SPEAKING', '런비스가 대답하고 있습니다...');
 
@@ -689,8 +696,8 @@
       var cleanText = text.replace(/[*#_~`]/g, '').trim();
       var utter = new SpeechSynthesisUtterance(cleanText);
       utter.lang = 'ko-KR';
-      utter.rate = 1.05;
-      utter.pitch = 1.04;
+      utter.rate = 1.12;
+      utter.pitch = 1.02;
 
       var voices = window.speechSynthesis.getVoices();
       var koVoice = null;
@@ -856,7 +863,6 @@
         .replace(/"/g, '&quot;');
     }
 
-    // 모든 버튼 이벤트를 표준 addEventListener로 안전하게 연결
     document.addEventListener('DOMContentLoaded', function() {
       var badge = document.getElementById('jsReadyBadge');
       if (badge) {
