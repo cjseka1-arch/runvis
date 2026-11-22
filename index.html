@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>RUN-VIS | 런수학 원장실 음성 비서</title>
+  <title>RUN-VIS LIVE | 런수학 원장실 실시간 AI 비서</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -14,15 +14,11 @@
       color: #FFFFFF;
       -webkit-tap-highlight-color: transparent;
     }
-    .mic-active-chat {
+    .live-active {
       background-color: #E50914 !important;
       border-color: #E50914 !important;
       color: #FFFFFF !important;
-      box-shadow: 0 0 22px rgba(229, 9, 20, 0.5);
-    }
-    .mic-active-standby {
-      border-color: #E50914 !important;
-      background-color: #241415 !important;
+      box-shadow: 0 0 24px rgba(229, 9, 20, 0.55);
     }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #141414; }
@@ -36,7 +32,8 @@
     <div class="max-w-5xl mx-auto flex items-center justify-between gap-2">
       <div class="flex items-center gap-2.5">
         <span class="text-lg sm:text-xl font-black tracking-wide text-[#E50914]">RUN-VIS</span>
-        <span class="text-xs text-[#B3B3B3]">원장실 AI 음성 비서</span>
+        <span class="px-1.5 py-0.5 rounded bg-[#E50914]/20 border border-[#E50914]/50 text-[10px] font-black text-[#ff6b72]">LIVE</span>
+        <span class="text-xs text-[#B3B3B3] hidden sm:inline">실시간 AI 음성 비서</span>
       </div>
 
       <div class="flex items-center gap-2">
@@ -56,22 +53,22 @@
   <!-- 메인 영역 -->
   <main class="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-5 py-4 space-y-4">
 
-    <!-- 1. 음성 비서 컨트롤 -->
+    <!-- 1. 실시간 Live 컨트롤 -->
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini 직접 음성 청취 + 실시간 검색</span>
-          <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-yellow-500/50 text-yellow-300 font-bold">
-            초기화중...
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 실시간 양방향 통화</span>
+          <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
+            준비됨
           </span>
         </div>
-        <span id="micDiagBadge" class="text-xs text-[#999999]">음성 대기</span>
+        <span id="micDiagBadge" class="text-xs text-[#999999]">통화 대기</span>
       </div>
 
       <div class="flex flex-col sm:flex-row gap-2.5">
         <button
           type="button"
-          id="micToggleBtn"
+          id="liveToggleBtn"
           class="flex-1 py-4 px-4 rounded-lg border border-[#444444] bg-[#181818] hover:bg-[#2a2a2a] active:scale-[0.99] transition flex items-center justify-between gap-3 cursor-pointer"
         >
           <div class="flex items-center gap-3.5">
@@ -82,20 +79,20 @@
               </svg>
             </span>
             <div class="text-left">
-              <div id="micBtnTitle" class="text-base font-bold text-white">런비스 음성 비서 켜기</div>
-              <div id="micBtnSub" class="text-xs text-[#B3B3B3]">"런비스"라고 부르면 제미나이가 직접 목소리를 듣습니다.</div>
+              <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">전화 통화처럼 자연스럽게 대화하고 언제든 말을 끊을 수 있습니다.</div>
             </div>
           </div>
-          <span id="micSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
+          <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
         </button>
 
         <button
           type="button"
-          id="btnDirectChat"
-          class="sm:w-48 py-3.5 px-4 rounded-lg border border-[#3a3a3a] bg-[#181818] hover:bg-[#2a2a2a] transition flex sm:flex-col items-center justify-center gap-1 text-center cursor-pointer"
+          id="btnMuteMic"
+          class="hidden sm:w-36 py-3.5 px-4 rounded-lg border border-[#3a3a3a] bg-[#181818] hover:bg-[#2a2a2a] transition flex sm:flex-col items-center justify-center gap-1 text-center cursor-pointer"
         >
-          <span id="directChatTitle" class="text-xs font-bold text-white">지금 바로 말하기</span>
-          <span id="directChatSub" class="text-[11px] text-[#999999]">제미나이 직접 청취</span>
+          <span id="muteBtnTitle" class="text-xs font-bold text-white">마이크 끄기</span>
+          <span id="muteBtnSub" class="text-[11px] text-[#999999]">일시 음소거</span>
         </button>
       </div>
 
@@ -104,13 +101,8 @@
         <div class="flex items-center justify-between gap-2 text-xs">
           <div class="flex items-center gap-2 min-w-0">
             <span class="text-[#E50914] font-bold shrink-0">상태:</span>
-            <span id="liveStatusText" class="text-[#DDDDDD] truncate">"런비스 음성 비서 켜기" 또는 [지금 바로 말하기]를 눌러보세요.</span>
+            <span id="liveStatusText" class="text-[#DDDDDD] truncate">[실시간 음성 대화 시작] 버튼을 눌러 런비스와 통화를 시작하세요.</span>
           </div>
-          <button
-            type="button"
-            id="btnWakeTest"
-            class="px-3 py-1 rounded bg-[#E50914] hover:bg-[#c80812] text-[11px] font-bold text-white shrink-0 cursor-pointer"
-          >인사 테스트</button>
         </div>
         <div id="volumeBarWrap" class="hidden w-full h-1.5 bg-[#222222] rounded-full overflow-hidden">
           <div id="volumeBar" class="h-full bg-[#E50914] transition-all duration-75" style="width: 0%;"></div>
@@ -124,15 +116,15 @@
       <!-- 좌측: 대화 기록 -->
       <section class="lg:col-span-5 bg-[#222222] border border-[#333333] rounded-lg flex flex-col h-[460px]">
         <div class="px-4 py-3 border-b border-[#333333] flex items-center justify-between">
-          <span class="text-xs font-bold text-white">대화 스트림</span>
+          <span class="text-xs font-bold text-white">실시간 대화 로그</span>
           <button type="button" id="btnClearChat" class="text-[11px] text-[#B3B3B3] hover:text-white cursor-pointer">비우기</button>
         </div>
 
         <div id="chatStream" class="flex-1 overflow-y-auto p-4 space-y-3">
           <div class="flex flex-col items-start space-y-1">
-            <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS</span>
+            <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요, 원장님! <strong>[런비스 음성 비서 켜기]</strong> 후 <strong>"런비스"</strong>라고 부르시거나, 아래에 글자로 먼저 테스트해 보세요.
+              안녕하세요, 원장님! <strong>[실시간 음성 대화 시작]</strong>을 누르시면 제미나이 Live 엔진으로 사람처럼 자연스럽게 대화할 수 있습니다.
             </div>
           </div>
         </div>
@@ -141,7 +133,7 @@
           <input
             id="textInput"
             type="text"
-            placeholder="글자로 말 걸기 (예: 양명철 오늘 결석 처리해줘)"
+            placeholder="통화 중 글자로도 입력 가능"
             class="flex-1 bg-[#111111] border border-[#333333] focus:border-white rounded-md px-3 py-2 text-xs sm:text-sm text-white outline-none"
           />
           <button
@@ -190,7 +182,7 @@
   <div id="settingsModal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
     <div class="bg-[#222222] border border-[#333333] rounded-lg max-w-md w-full p-5 space-y-4">
       <div class="flex items-center justify-between border-b border-[#333333] pb-3">
-        <h3 class="text-base font-bold text-white">런비스 설정</h3>
+        <h3 class="text-base font-bold text-white">런비스 Live 설정</h3>
         <button type="button" id="btnCloseSettingsX" class="text-[#B3B3B3] hover:text-white text-sm font-bold px-2 py-1 cursor-pointer">✕</button>
       </div>
 
@@ -199,26 +191,27 @@
         <input
           id="modalApiKeyInput"
           type="text"
-          placeholder="AIzaSy... (내 기기에만 안전하게 저장됩니다)"
+          placeholder="AIzaSy... (내 기기에만 저장됩니다)"
           class="w-full bg-[#141414] border border-[#333333] rounded-md px-3 py-2 text-xs text-white outline-none"
         />
       </div>
 
       <div class="space-y-1.5">
-        <label class="block text-xs font-bold text-[#B3B3B3]">호출어 오인식 보정 단어 (쉼표 구분)</label>
-        <input
-          id="modalWakeAliasesInput"
-          type="text"
-          class="w-full bg-[#141414] border border-[#333333] rounded-md px-3 py-2 text-xs text-white outline-none"
-        />
+        <label class="block text-xs font-bold text-[#B3B3B3]">AI 목소리 선택</label>
+        <select id="modalVoiceSelect" class="w-full bg-[#141414] border border-[#333333] rounded-md px-3 py-2 text-xs text-white outline-none">
+          <option value="Kore">Kore (차분하고 또렷한 여성 비서)</option>
+          <option value="Aoede">Aoede (밝고 친근한 여성 비서)</option>
+          <option value="Puck">Puck (활기찬 남성 비서)</option>
+          <option value="Charon">Charon (중후한 남성 비서)</option>
+        </select>
       </div>
 
       <div class="space-y-1.5">
-        <label class="block text-xs font-bold text-[#B3B3B3]">호출 응답 멘트</label>
+        <label class="block text-xs font-bold text-[#B3B3B3]">Live 모델명 (오류 시 변경)</label>
         <input
-          id="modalWakeReplyInput"
+          id="modalModelInput"
           type="text"
-          class="w-full bg-[#141414] border border-[#333333] rounded-md px-3 py-2 text-sm text-white outline-none"
+          class="w-full bg-[#141414] border border-[#333333] rounded-md px-3 py-2 text-xs text-white outline-none"
         />
       </div>
 
@@ -229,63 +222,41 @@
     </div>
   </div>
 
-  <!-- 토스트 메시지 -->
+  <!-- 토스트 -->
   <div id="toastBox" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-md bg-[#2a2a2a] border border-[#444444] text-xs font-bold text-white shadow-lg opacity-0 pointer-events-none transition-opacity duration-200"></div>
 
   <script>
-    window.onerror = function(msg, url, line) {
-      var st = document.getElementById('liveStatusText');
-      if (st) st.textContent = '스크립트 오류(' + line + '행): ' + msg;
-    };
+    var DEFAULT_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
+    var DEFAULT_VOICE = 'Kore';
 
-    var DEFAULT_WAKE_REPLY = '네, 잘생긴 원장님~ 말씀하세요!';
-    var CORE_WAKE_ALIASES = ['런비스', '런 비스', '런미스', '럼비스', '연비스', '원피스', '원 비스', '던비스', '덤비스', '런비'];
-    var GEMINI_MODEL = 'gemini-2.5-flash';
+    var ws = null;
+    var isLiveConnected = false;
+    var isMuted = false;
 
-    var isAssistantOn = false;
-    var assistantMode = 'OFF';
-    var recognition = null;
-    var restartTimer = null;
-    var isSpeaking = false;
+    // 오디오 입출력 변수
+    var captureCtx = null;
+    var playbackCtx = null;
+    var mediaStream = null;
+    var micSource = null;
+    var processorNode = null;
+    var nextPlayTime = 0;
+    var activeSources = [];
 
-    var mediaRecorder = null;
-    var audioStream = null;
-    var audioChunks = [];
-    var audioCtx = null;
-    var vadFrameId = null;
-    var isRecordingAudio = false;
-    var cancelCurrentRecording = false;
+    // 자막 버퍼
+    var currentUserBubble = null;
+    var currentAiBubble = null;
 
-    var chatHistory = [];
     var pendingTasks = [];
     var actionLogs = [];
 
     function getApiKey() {
-      try {
-        return (localStorage.getItem('runvis_api_key') || '').replace(/\s+/g, '').trim();
-      } catch (e) {
-        return '';
-      }
+      try { return (localStorage.getItem('runvis_api_key') || '').replace(/\s+/g, '').trim(); } catch (e) { return ''; }
     }
-    function getWakeReply() {
-      try {
-        return (localStorage.getItem('runvis_wake_reply') || DEFAULT_WAKE_REPLY).trim();
-      } catch (e) {
-        return DEFAULT_WAKE_REPLY;
-      }
+    function getVoiceName() {
+      try { return localStorage.getItem('runvis_live_voice') || DEFAULT_VOICE; } catch (e) { return DEFAULT_VOICE; }
     }
-    function getWakeAliases() {
-      var list = CORE_WAKE_ALIASES.slice();
-      try {
-        var saved = localStorage.getItem('runvis_wake_aliases');
-        if (saved) {
-          saved.split(',').forEach(function(s) {
-            var clean = s.trim();
-            if (clean && list.indexOf(clean) === -1) list.push(clean);
-          });
-        }
-      } catch (e) {}
-      return list;
+    function getLiveModel() {
+      try { return (localStorage.getItem('runvis_live_model') || DEFAULT_LIVE_MODEL).trim(); } catch (e) { return DEFAULT_LIVE_MODEL; }
     }
 
     function showToast(msg) {
@@ -296,603 +267,492 @@
       box._t = setTimeout(function() { box.classList.add('opacity-0'); }, 2800);
     }
 
-    function setAssistantMode(mode, statusText) {
-      assistantMode = mode;
+    function setLiveUI(state, statusText) {
       var dot = document.getElementById('stateDot');
       var label = document.getElementById('stateLabel');
       var pill = document.getElementById('statePill');
-      var btn = document.getElementById('micToggleBtn');
-      var title = document.getElementById('micBtnTitle');
-      var sub = document.getElementById('micBtnSub');
-      var badge = document.getElementById('micSwitchBadge');
+      var btn = document.getElementById('liveToggleBtn');
+      var title = document.getElementById('liveBtnTitle');
+      var sub = document.getElementById('liveBtnSub');
+      var badge = document.getElementById('liveSwitchBadge');
       var iconWrap = document.getElementById('micIconWrap');
-      var statusEl = document.getElementById('liveStatusText');
-      var directBtn = document.getElementById('btnDirectChat');
-      var directTitle = document.getElementById('directChatTitle');
-      var directSub = document.getElementById('directChatSub');
+      var muteBtn = document.getElementById('btnMuteMic');
       var volWrap = document.getElementById('volumeBarWrap');
+      var diag = document.getElementById('micDiagBadge');
 
-      if (statusText) statusEl.textContent = statusText;
-      btn.classList.remove('mic-active-chat', 'mic-active-standby');
+      if (statusText) document.getElementById('liveStatusText').textContent = statusText;
+      btn.classList.remove('live-active');
 
-      if (mode === 'RECORDING') {
-        volWrap.classList.remove('hidden');
-        directBtn.className = 'sm:w-48 py-3.5 px-4 rounded-lg border border-[#E50914] bg-[#E50914] hover:bg-[#c80812] transition flex sm:flex-col items-center justify-center gap-1 text-center cursor-pointer';
-        directTitle.textContent = '말하기 완료 (바로 전송)';
-        directSub.textContent = '조용해지면 자동 전송됨';
-        directSub.className = 'text-[11px] text-white/80';
-      } else {
-        volWrap.classList.add('hidden');
-        directBtn.className = 'sm:w-48 py-3.5 px-4 rounded-lg border border-[#3a3a3a] bg-[#181818] hover:bg-[#2a2a2a] transition flex sm:flex-col items-center justify-center gap-1 text-center cursor-pointer';
-        directTitle.textContent = '지금 바로 말하기';
-        directSub.textContent = '제미나이 직접 청취';
-        directSub.className = 'text-[11px] text-[#999999]';
-      }
-
-      if (mode === 'OFF') {
+      if (state === 'OFF') {
         dot.className = 'w-2 h-2 rounded-full bg-[#666666]';
         label.textContent = '대기중';
         label.className = 'text-[#999999] font-bold';
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181818] border border-[#333333] text-xs font-bold';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
-        title.textContent = '런비스 음성 비서 켜기';
-        sub.textContent = '"런비스"라고 부르면 제미나이가 직접 목소리를 듣습니다.';
+        title.textContent = '실시간 음성 대화 시작';
+        sub.textContent = '전화 통화처럼 자연스럽게 대화하고 언제든 말을 끊을 수 있습니다.';
         badge.textContent = 'OFF';
         badge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
-      } else if (mode === 'STANDBY') {
-        dot.className = 'w-2 h-2 rounded-full bg-[#E50914] animate-pulse';
-        label.textContent = '호출어대기';
-        label.className = 'text-white font-bold';
-        pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#241415] border border-[#E50914]/70 text-xs font-bold';
-        btn.classList.add('mic-active-standby');
-        iconWrap.className = 'w-11 h-11 rounded-full bg-[#E50914]/20 text-[#E50914] flex items-center justify-center shrink-0';
-        title.textContent = '호출어 대기중 ("런비스")';
-        sub.textContent = '부르시면 대답 후 제미나이 직접 녹음이 시작됩니다.';
-        badge.textContent = 'ON';
-        badge.className = 'px-3 py-1 rounded bg-[#E50914] text-white text-xs font-bold shrink-0';
-      } else if (mode === 'RECORDING') {
-        dot.className = 'w-2 h-2 rounded-full bg-[#E50914] animate-ping';
-        label.textContent = '육성 녹음중';
-        label.className = 'text-white font-bold';
-        pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold';
-        btn.classList.add('mic-active-chat');
-        iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
-        title.textContent = '🎤 말씀하세요! (제미나이 직접 청취중)';
-        sub.textContent = '말을 끝내고 1.5초 멈추면 자동으로 전송됩니다.';
-        badge.textContent = 'REC';
-        badge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
-      } else if (mode === 'THINKING') {
+        muteBtn.classList.add('hidden');
+        volWrap.classList.add('hidden');
+        diag.textContent = '통화 대기';
+        diag.className = 'text-xs text-[#999999]';
+      } else if (state === 'CONNECTING') {
         dot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse';
-        label.textContent = '분석·검색중';
+        label.textContent = '연결중...';
         label.className = 'text-yellow-300 font-bold';
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#262212] border border-yellow-500/50 text-xs font-bold';
-        btn.classList.add('mic-active-chat');
-      } else if (mode === 'SPEAKING') {
-        dot.className = 'w-2 h-2 rounded-full bg-[#4ade80] animate-pulse';
-        label.textContent = '말하는중';
-        label.className = 'text-[#4ade80] font-bold';
-        pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#13261a] border border-[#4ade80]/50 text-xs font-bold';
-        btn.classList.add('mic-active-chat');
+        title.textContent = '런비스 Live 서버 연결 중...';
+        badge.textContent = '...';
+        diag.textContent = '연결 시도 중';
+      } else if (state === 'LIVE') {
+        dot.className = 'w-2 h-2 rounded-full bg-[#E50914] animate-ping';
+        label.textContent = '실시간 통화중';
+        label.className = 'text-white font-bold';
+        pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold';
+        btn.classList.add('live-active');
+        iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
+        title.textContent = '통화 종료하기 (LIVE 연결됨)';
+        sub.textContent = '편하게 말씀하세요! 대답 도중에 말을 끊어도 바로 듣습니다.';
+        badge.textContent = 'LIVE';
+        badge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
+        muteBtn.classList.remove('hidden');
+        volWrap.classList.remove('hidden');
+        diag.textContent = '🟢 실시간 양방향 연결됨';
+        diag.className = 'text-xs font-bold text-[#4ade80]';
       }
     }
 
-    function updateMicDiag(text, isOk) {
-      var el = document.getElementById('micDiagBadge');
-      if (!el) return;
-      el.textContent = text;
-      el.className = isOk ? 'text-xs font-bold text-[#4ade80]' : 'text-xs text-[#999999]';
-    }
-
-    function runWakeTest() {
-      var reply = getWakeReply();
-      appendChat('user', '런비스 (인사 테스트)');
-      appendChat('assistant', reply);
-      speakText(reply, function() {
-        if (isAssistantOn) startAudioRecording();
-      });
-    }
-
-    function toggleVoiceAssistant() {
-      if (isAssistantOn) stopVoiceAssistant();
-      else startVoiceAssistant();
-    }
-
-    function startVoiceAssistant() {
-      if (!getApiKey()) {
-        showToast('먼저 우측 상단 [설정]에서 Gemini API 키를 입력해 주세요!');
-        openSettingsModal();
-        return;
-      }
-
-      if (window.speechSynthesis) {
-        try {
-          window.speechSynthesis.cancel();
-          var u = new SpeechSynthesisUtterance('');
-          u.volume = 0;
-          window.speechSynthesis.speak(u);
-        } catch (e) {}
-      }
-
-      isAssistantOn = true;
-      setAssistantMode('STANDBY', '호출어 대기중: "런비스"라고 불러주세요.');
-      startWakeWordListener(50);
-    }
-
-    function stopVoiceAssistant() {
-      isAssistantOn = false;
-      isSpeaking = false;
-      clearTimeout(restartTimer);
-      stopWakeWordListener();
-      stopAudioRecording(true);
-      if (window.speechSynthesis) {
-        try { window.speechSynthesis.cancel(); } catch (e) {}
-      }
-      updateMicDiag('음성 중지됨', false);
-      setAssistantMode('OFF', '음성 비서가 중지되었습니다.');
-    }
-
-    function handleDirectChatClick() {
-      if (!getApiKey()) {
-        showToast('먼저 우측 상단 [설정]에서 Gemini API 키를 입력해 주세요!');
-        openSettingsModal();
-        return;
-      }
-      if (isRecordingAudio) {
-        stopAudioRecording(false);
-        return;
-      }
-      if (!isAssistantOn) isAssistantOn = true;
-      stopWakeWordListener();
-      startAudioRecording();
-    }
-
-    // 1단계: 호출어("런비스") 즉시 감지
-    function stopWakeWordListener() {
-      clearTimeout(restartTimer);
-      if (recognition) {
-        try {
-          recognition.onresult = null;
-          recognition.onerror = null;
-          recognition.onend = null;
-          recognition.stop();
-        } catch (e) {}
-        recognition = null;
-      }
-    }
-
-    function startWakeWordListener(delayMs) {
-      stopWakeWordListener();
-      if (!isAssistantOn || isSpeaking || isRecordingAudio) return;
-
-      restartTimer = setTimeout(function() {
-        if (!isAssistantOn || isSpeaking || isRecordingAudio || assistantMode !== 'STANDBY') return;
-        var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) {
-          updateMicDiag('호출어 미지원 (버튼 사용)', false);
-          return;
-        }
-
-        var rec = new SR();
-        rec.lang = 'ko-KR';
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.maxAlternatives = 1;
-
-        rec.onstart = function() {
-          updateMicDiag('👂 호출어 대기중 ("런비스")', true);
-        };
-
-        rec.onresult = function(event) {
-          if (assistantMode !== 'STANDBY') return;
-          var combined = '';
-          for (var i = event.resultIndex; i < event.results.length; i++) {
-            combined += event.results[i][0].transcript;
-          }
-          combined = combined.trim();
-          if (!combined) return;
-
-          document.getElementById('liveStatusText').textContent = '들린 말: "' + combined + '"';
-
-          var wake = matchWakePhrase(combined);
-          if (wake.matched) {
-            stopWakeWordListener();
-            appendChat('user', combined);
-            var reply = getWakeReply();
-            appendChat('assistant', reply);
-            speakText(reply, function() {
-              if (isAssistantOn) startAudioRecording();
-            });
-          }
-        };
-
-        rec.onerror = function(event) {
-          if (event.error === 'no-speech') return;
-          if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            showToast('마이크 권한이 차단되었습니다!');
-            stopVoiceAssistant();
-          }
-        };
-
-        rec.onend = function() {
-          if (isAssistantOn && assistantMode === 'STANDBY' && !isSpeaking && !isRecordingAudio) {
-            startWakeWordListener(400);
-          }
-        };
-
-        recognition = rec;
-        try { rec.start(); } catch (e) { startWakeWordListener(700); }
-      }, delayMs);
-    }
-
-    function matchWakePhrase(text) {
-      var norm = text.replace(/\s+/g, '').toLowerCase();
-      var aliases = getWakeAliases();
-      for (var i = 0; i < aliases.length; i++) {
-        var cleanAlias = aliases[i].replace(/\s+/g, '').toLowerCase();
-        if (cleanAlias && norm.indexOf(cleanAlias) !== -1) {
-          return { matched: true };
-        }
-      }
-      return { matched: false };
-    }
-
-    // 2단계: 제미나이 직접 음성 녹음 + 자동 무음 감지
-    function startAudioRecording() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showToast('이 브라우저는 오디오 녹음을 지원하지 않습니다.');
-        return;
-      }
-
-      stopWakeWordListener();
-      stopAudioRecording(true);
-      cancelCurrentRecording = false;
-      audioChunks = [];
-
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(function(stream) {
-          if (!isAssistantOn) {
-            stream.getTracks().forEach(function(t) { t.stop(); });
-            return;
-          }
-
-          audioStream = stream;
-          var mimeType = '';
-          if (window.MediaRecorder) {
-            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
-            else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
-            else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
-          }
-
-          mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType: mimeType }) : new MediaRecorder(stream);
-          isRecordingAudio = true;
-          setAssistantMode('RECORDING', '🎤 말씀하세요... (말이 끝나면 자동 전송됩니다)');
-          updateMicDiag('🔴 제미나이 직접 청취중', true);
-
-          mediaRecorder.ondataavailable = function(e) {
-            if (e.data && e.data.size > 0) audioChunks.push(e.data);
-          };
-
-          mediaRecorder.onstop = function() {
-            isRecordingAudio = false;
-            cleanupAudioResources();
-
-            if (cancelCurrentRecording || !isAssistantOn || audioChunks.length === 0) {
-              if (isAssistantOn && assistantMode === 'RECORDING') {
-                setAssistantMode('STANDBY', '호출어 대기중: "런비스"라고 불러주세요.');
-                startWakeWordListener(300);
-              }
-              return;
-            }
-
-            var finalMime = (mediaRecorder.mimeType || mimeType || 'audio/webm').split(';')[0];
-            var blob = new Blob(audioChunks, { type: finalMime });
-            if (blob.size < 1500) {
-              setAssistantMode('STANDBY', '말씀이 들리지 않아 대기 모드로 전환했습니다.');
-              startWakeWordListener(300);
-              return;
-            }
-            processAudioWithGeminiAI(blob, finalMime);
-          };
-
-          mediaRecorder.start();
-          startSilenceDetection(stream);
-        })
-        .catch(function(err) {
-          showToast('마이크 접근 실패: ' + err.message);
-          setAssistantMode('STANDBY', '마이크 권한을 확인해 주세요.');
-        });
-    }
-
-    function startSilenceDetection(stream) {
-      try {
-        var AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        audioCtx = new AudioContextClass();
-        var source = audioCtx.createMediaStreamSource(stream);
-        var analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 512;
-        source.connect(analyser);
-
-        var dataArray = new Uint8Array(analyser.frequencyBinCount);
-        var hasSpoken = false;
-        var speechStartTime = Date.now();
-        var lastSoundTime = Date.now();
-
-        var VOLUME_THRESHOLD = 16;
-        var SILENCE_MS = 1500;
-        var NO_SPEECH_TIMEOUT = 8000;
-
-        function checkVolume() {
-          if (!isRecordingAudio) return;
-          analyser.getByteFrequencyData(dataArray);
-          var sum = 0;
-          for (var i = 0; i < dataArray.length; i++) sum += dataArray[i];
-          var avg = sum / dataArray.length;
-
-          var volBar = document.getElementById('volumeBar');
-          if (volBar) volBar.style.width = Math.min(100, Math.round(avg * 2.5)) + '%';
-
-          var now = Date.now();
-          if (avg > VOLUME_THRESHOLD) {
-            hasSpoken = true;
-            lastSoundTime = now;
-          } else {
-            if (hasSpoken && (now - lastSoundTime > SILENCE_MS)) {
-              stopAudioRecording(false);
-              return;
-            }
-            if (!hasSpoken && (now - speechStartTime > NO_SPEECH_TIMEOUT)) {
-              stopAudioRecording(true);
-              if (isAssistantOn) {
-                setAssistantMode('STANDBY', '호출어 대기중: "런비스"라고 불러주세요.');
-                startWakeWordListener(300);
-              }
-              return;
-            }
-          }
-          vadFrameId = requestAnimationFrame(checkVolume);
-        }
-        checkVolume();
-      } catch (e) {}
-    }
-
-    function stopAudioRecording(isCancel) {
-      cancelCurrentRecording = !!isCancel;
-      if (vadFrameId) {
-        cancelAnimationFrame(vadFrameId);
-        vadFrameId = null;
-      }
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        try { mediaRecorder.stop(); } catch (e) {}
+    // =========================================================
+    // 실시간 Live 연결 시작 / 종료
+    // =========================================================
+    function toggleLiveSession() {
+      if (isLiveConnected || ws) {
+        stopLiveSession();
       } else {
-        isRecordingAudio = false;
-        cleanupAudioResources();
+        startLiveSession();
       }
     }
 
-    function cleanupAudioResources() {
-      if (vadFrameId) {
-        cancelAnimationFrame(vadFrameId);
-        vadFrameId = null;
-      }
-      if (audioStream) {
-        audioStream.getTracks().forEach(function(t) { t.stop(); });
-        audioStream = null;
-      }
-      if (audioCtx) {
-        try { audioCtx.close(); } catch (e) {}
-        audioCtx = null;
-      }
-      var volBar = document.getElementById('volumeBar');
-      if (volBar) volBar.style.width = '0%';
-    }
-
-    // 3단계: 제미나이 API 호출 (복사 깨짐 방지 주소 조립 적용)
-    function getSystemPrompt() {
-      return '당신은 런수학학원 원장님의 전담 비서 런비스입니다. ' +
-        '기계적인 존댓말("요청하신 작업이 완료되었습니다" 등)은 절대 쓰지 말고, 센스 있고 다정한 실제 사람 비서처럼 자연스러운 구어체로 짧게 1~3문장만 답하세요. ' +
-        '수능 등급컷, 날씨, 최신 뉴스 등 최신 정보가 필요하면 반드시 구글 검색을 활용해 정확히 답하세요. ' +
-        '반드시 마크다운 코드블록(```)이나 앞뒤 설명 없이 순수 JSON 객체 하나만 응답하세요: ' +
-        '{"transcript": "사용자가 말한 한국어 문장 그대로 받아쓰기", "reply": "구어체 답변(1~3문장)", "endChat": false, "actions": [{"type": "task 또는 approve_all", "student": "학생이름", "category": "결석|보강|시간변경|과제체크|학부모 리포트", "summary": "업무 요약 또는 학부모 문자 초안", "isReport": true}]} ' +
-        '사용자가 "그만", "종료", "수고했어" 등 대화를 끝내려 하면 endChat을 true로 설정하세요. ' +
-        '일상 대화나 검색 답변이면 actions는 []로 비우고, 출결/보강/과제/리포트 지시면 actions에 task를 넣고, 승인/발송 지시면 approve_all을 넣으세요.';
-    }
-
-    function processAudioWithGeminiAI(audioBlob, mimeType) {
-      setAssistantMode('THINKING', '제미나이가 원장님 목소리를 직접 듣고 있습니다...');
-      updateMicDiag('🧠 음성 분석중...', false);
-
-      var reader = new FileReader();
-      reader.onloadend = function() {
-        var base64Data = reader.result.split(',')[1];
-        var contents = chatHistory.concat([{
-          role: 'user',
-          parts: [
-            { inline_data: { mime_type: mimeType, data: base64Data } },
-            { text: '위 오디오는 원장님의 음성 명령입니다. 정확히 듣고 지정된 JSON 형식으로 답하세요.' }
-          ]
-        }]);
-        sendToGemini(contents, null);
-      };
-      reader.readAsDataURL(audioBlob);
-    }
-
-    function processTextWithGeminiAI(userText) {
-      appendChat('user', userText);
-      setAssistantMode('THINKING', '런비스가 검색 및 답변을 준비 중입니다...');
-      var contents = chatHistory.concat([{
-        role: 'user',
-        parts: [{ text: userText }]
-      }]);
-      sendToGemini(contents, userText);
-    }
-
-    function sendToGemini(contents, originalTextIfTextMode) {
+    async function startLiveSession() {
       var apiKey = getApiKey();
       if (!apiKey) {
-        handleAiError('API 키가 비어 있습니다. 우측 상단 [설정]에서 입력해 주세요.');
+        showToast('먼저 우측 상단 [설정]에서 Gemini API 키를 입력해 주세요!');
+        openSettingsModal();
         return;
       }
 
-      var payloadObj = {
-        systemInstruction: { parts: [{ text: getSystemPrompt() }] },
-        contents: contents,
-        tools: [{ google_search: {} }],
-        generationConfig: {
-          temperature: 0.6,
-          maxOutputTokens: 1024,
-          thinkingConfig: { thinkingBudget: 0 }
+      setLiveUI('CONNECTING', '마이크 권한과 제미나이 Live 서버를 연결하고 있습니다...');
+
+      try {
+        // 1. 오디오 컨텍스트 초기화 (모바일 브라우저 정책상 클릭 직후 생성 필수)
+        var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        captureCtx = new AudioCtx();
+        playbackCtx = new AudioCtx({ sampleRate: 24000 });
+        if (captureCtx.state === 'suspended') await captureCtx.resume();
+        if (playbackCtx.state === 'suspended') await playbackCtx.resume();
+        nextPlayTime = 0;
+
+        // 2. 마이크 스트림 획득 (에코 캔슬링 + 노이즈 억제 활성화)
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: 1
+          }
+        });
+
+        // 3. Gemini Live WebSocket 연결
+        var wsUrl = ['wss:', '', 'generativelanguage.googleapis.com', 'ws', 'google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=' + encodeURIComponent(apiKey)].join('/');
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function() {
+          sendSetupMessage();
+        };
+
+        ws.onmessage = async function(event) {
+          try {
+            var text = (event.data instanceof Blob) ? await event.data.text() : event.data;
+            var msg = JSON.parse(text);
+            handleServerMessage(msg);
+          } catch (e) {
+            console.error('WS 파싱 오류:', e);
+          }
+        };
+
+        ws.onerror = function() {
+          appendChat('system', 'WebSocket 연결 오류가 발생했습니다. API 키와 네트워크를 확인해 주세요.');
+        };
+
+        ws.onclose = function(e) {
+          if (isLiveConnected) {
+            appendChat('system', '통화가 종료되었습니다. (코드: ' + e.code + (e.reason ? ' / ' + e.reason : '') + ')');
+          } else if (e.reason) {
+            appendChat('system', '연결 실패: ' + e.reason);
+          }
+          cleanupLiveSession();
+        };
+
+      } catch (err) {
+        appendChat('system', '시작 오류: ' + err.message);
+        cleanupLiveSession();
+      }
+    }
+
+    function sendSetupMessage() {
+      var model = getLiveModel();
+      if (model.indexOf('models/') !== 0) model = 'models/' + model;
+
+      var setupMsg = {
+        setup: {
+          model: model,
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: {
+                  voiceName: getVoiceName()
+                }
+              }
+            }
+          },
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+          systemInstruction: {
+            parts: [{
+              text: '당신은 런수학학원 원장님의 전담 AI 비서 런비스입니다. ' +
+                    '기계적인 존댓말을 피하고, 실제 친근하고 센스 있는 사람 비서처럼 자연스러운 한국어 구어체로 짧고 핵심만 대답하세요. ' +
+                    '최신 정보(수능 등급컷, 날씨, 뉴스 등)가 필요하면 구글 검색 도구를 사용하세요. ' +
+                    '원장님이 학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 작성 등을 지시하면 반드시 create_academy_task 함수를 호출하고, ' +
+                    '승인하거나 문자 보내라고 하면 approve_all_tasks 함수를 호출하세요.'
+            }]
+          },
+          tools: [
+            { googleSearch: {} },
+            {
+              functionDeclarations: [
+                {
+                  name: 'create_academy_task',
+                  description: '학생의 결석, 보강, 시간변경, 과제체크, 학부모 리포트 업무를 원장님 승인 대기 목록에 등록합니다.',
+                  parameters: {
+                    type: 'OBJECT',
+                    properties: {
+                      student: { type: 'STRING', description: '학생 이름' },
+                      category: { type: 'STRING', description: '결석, 보강, 시간변경, 과제체크, 학부모 리포트 중 하나' },
+                      summary: { type: 'STRING', description: '업무 상세 요약 또는 학부모 문자 초안' },
+                      isReport: { type: 'BOOLEAN', description: '학부모 리포트/문자 초안이면 true' }
+                    },
+                    required: ['student', 'category', 'summary']
+                  }
+                },
+                {
+                  name: 'approve_all_tasks',
+                  description: '현재 승인 대기 중인 모든 학원 업무를 일괄 승인 및 처리합니다.',
+                  parameters: { type: 'OBJECT', properties: {} }
+                }
+              ]
+            }
+          ]
         }
       };
 
-      var url = ['https:', '', 'generativelanguage.googleapis.com', 'v1beta', 'models', GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey)].join('/');
+      ws.send(JSON.stringify(setupMsg));
+    }
 
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadObj)
-      })
-      .then(function(res) {
-        return res.text().then(function(txt) {
-          return { status: res.status, text: txt };
-        });
-      })
-      .then(function(resObj) {
-        var data;
-        try {
-          data = JSON.parse(resObj.text);
-        } catch (parseErr) {
-          throw new Error('HTTP ' + resObj.status + ' 응답 오류: ' + resObj.text.slice(0, 120));
-        }
+    function startMicStreaming() {
+      micSource = captureCtx.createMediaStreamSource(mediaStream);
+      processorNode = captureCtx.createScriptProcessor(4096, 1, 1);
 
-        if (data.error) throw new Error(data.error.message || 'API 오류');
+      processorNode.onaudioprocess = function(e) {
+        if (!isLiveConnected || !ws || ws.readyState !== WebSocket.OPEN || isMuted) return;
 
-        var parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
-        var rawText = parts.map(function(p) { return p.text || ''; }).join('').trim();
+        var inputData = e.inputBuffer.getChannelData(0);
 
-        var parsed = { transcript: '', reply: rawText || '네 원장님, 바로 확인했어요!', endChat: false, actions: [] };
-        try {
-          var jsonMatch = rawText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          parsed.reply = rawText.replace(/```json|```/g, '').trim() || '네 원장님, 바로 확인했어요!';
-        }
+        // 음량 바 표시
+        var sum = 0;
+        for (var i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
+        var vol = Math.min(100, Math.round((sum / inputData.length) * 450));
+        var volBar = document.getElementById('volumeBar');
+        if (volBar) volBar.style.width = vol + '%';
 
-        var spokenText = originalTextIfTextMode || parsed.transcript || '(음성 명령)';
-        if (!originalTextIfTextMode) {
-          appendChat('user', spokenText);
-        }
+        // 16kHz PCM 16-bit 변환 후 전송
+        var pcm16 = downsampleTo16k(inputData, captureCtx.sampleRate);
+        var b64 = arrayBufferToBase64(pcm16.buffer);
 
-        var reply = parsed.reply || '네 원장님, 바로 확인했어요!';
-        var actions = Array.isArray(parsed.actions) ? parsed.actions : [];
+        ws.send(JSON.stringify({
+          realtimeInput: {
+            mediaChunks: [{
+              mimeType: 'audio/pcm;rate=16000',
+              data: b64
+            }]
+          }
+        }));
+      };
 
-        chatHistory.push({ role: 'user', parts: [{ text: spokenText }] });
-        chatHistory.push({ role: 'model', parts: [{ text: reply }] });
-        if (chatHistory.length > 16) chatHistory = chatHistory.slice(-16);
+      micSource.connect(processorNode);
+      processorNode.connect(captureCtx.destination);
+    }
 
-        for (var i = 0; i < actions.length; i++) {
-          var act = actions[i];
-          if (act.type === 'approve_all') {
-            approveAllTasks();
-          } else if (act.type === 'task') {
+    function handleServerMessage(msg) {
+      // 1. 초기 설정 완료 -> 마이크 송출 시작!
+      if (msg.setupComplete) {
+        isLiveConnected = true;
+        isMuted = false;
+        setLiveUI('LIVE', '🎤 연결 완료! 지금 바로 편하게 말씀하세요.');
+        startMicStreaming();
+        return;
+      }
+
+      // 2. 함수 호출(학원 업무 카드 생성 / 전체 승인)
+      if (msg.toolCall && msg.toolCall.functionCalls) {
+        var responses = msg.toolCall.functionCalls.map(function(fc) {
+          var resObj = { result: '완료되었습니다.' };
+          if (fc.name === 'create_academy_task') {
+            var a = fc.args || {};
             pendingTasks.unshift({
               id: 'task_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-              student: act.student || '학생',
-              category: act.category || '업무처리',
-              summary: act.summary || spokenText,
-              isReport: !!act.isReport || act.category === '학부모 리포트'
+              student: a.student || '학생',
+              category: a.category || '업무처리',
+              summary: a.summary || '',
+              isReport: !!a.isReport || a.category === '학부모 리포트'
             });
             renderPendingTasks();
+            resObj = { result: a.student + ' 학생 ' + a.category + ' 건을 승인 대기 목록에 등록했습니다.' };
+          } else if (fc.name === 'approve_all_tasks') {
+            approveAllTasks();
+            resObj = { result: '대기 중인 모든 작업을 승인 완료했습니다.' };
           }
-        }
+          return { id: fc.id, name: fc.name, response: resObj };
+        });
 
-        appendChat('assistant', reply);
-
-        if (isAssistantOn) {
-          speakText(reply, function() {
-            if (!isAssistantOn) return;
-            if (parsed.endChat) {
-              setAssistantMode('STANDBY', '호출어 대기중: "런비스"라고 불러주세요.');
-              startWakeWordListener(300);
-            } else {
-              startAudioRecording();
-            }
-          });
-        } else {
-          setAssistantMode('OFF', '답변 완료');
-          speakText(reply);
-        }
-      })
-      .catch(function(err) {
-        handleAiError(err.message);
-      });
-    }
-
-    function handleAiError(msg) {
-      var errMsg = '연결 오류: ' + msg;
-      appendChat('system', errMsg);
-      if (isAssistantOn) {
-        setAssistantMode('STANDBY', '오류가 발생해 대기 모드로 전환했습니다.');
-        startWakeWordListener(600);
-      } else {
-        setAssistantMode('OFF', errMsg);
-      }
-    }
-
-    function speakText(text, onDone) {
-      if (!window.speechSynthesis) {
-        if (onDone) onDone();
+        ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
         return;
       }
 
-      isSpeaking = true;
-      stopWakeWordListener();
-      stopAudioRecording(true);
-      updateMicDiag('🔊 런비스 말하는 중', false);
-      if (isAssistantOn) setAssistantMode('SPEAKING', '런비스가 대답하고 있습니다...');
+      // 3. 서버 콘텐츠 (음성 출력, 자막, 말 끊기)
+      if (msg.serverContent) {
+        var sc = msg.serverContent;
 
-      try { window.speechSynthesis.cancel(); } catch (e) {}
+        // 원장님이 말을 끊었을 때 -> 재생 중인 AI 음성 즉시 정지!
+        if (sc.interrupted) {
+          stopAllPlayback();
+          currentAiBubble = null;
+        }
 
-      var cleanText = text.replace(/[*#_~`]/g, '').trim();
-      var utter = new SpeechSynthesisUtterance(cleanText);
-      utter.lang = 'ko-KR';
-      utter.rate = 1.12;
-      utter.pitch = 1.02;
+        // 원장님 말 자막
+        if (sc.inputTranscription && sc.inputTranscription.text) {
+          appendOrUpdateStreamBubble('user', sc.inputTranscription.text);
+          currentAiBubble = null;
+        }
 
-      var voices = window.speechSynthesis.getVoices();
-      var koVoice = null;
-      for (var i = 0; i < voices.length; i++) {
-        if (voices[i].lang.indexOf('ko') !== -1) {
-          koVoice = voices[i];
-          if (voices[i].name.indexOf('Google') !== -1 || voices[i].name.indexOf('유나') !== -1) break;
+        // AI 말 자막
+        if (sc.outputTranscription && sc.outputTranscription.text) {
+          appendOrUpdateStreamBubble('assistant', sc.outputTranscription.text);
+          currentUserBubble = null;
+        }
+
+        // AI 음성 오디오 재생
+        if (sc.modelTurn && sc.modelTurn.parts) {
+          sc.modelTurn.parts.forEach(function(part) {
+            if (part.inlineData && part.inlineData.data) {
+              playPcm24kAudio(part.inlineData.data);
+            }
+          });
+        }
+
+        if (sc.turnComplete) {
+          currentUserBubble = null;
+          currentAiBubble = null;
         }
       }
-      if (koVoice) utter.voice = koVoice;
-
-      var finished = false;
-      var finishSpeak = function() {
-        if (finished) return;
-        finished = true;
-        clearTimeout(safetyTimer);
-        isSpeaking = false;
-        if (onDone) onDone();
-      };
-
-      var estimatedMs = Math.min(20000, Math.max(2200, cleanText.length * 145));
-      var safetyTimer = setTimeout(finishSpeak, estimatedMs);
-
-      utter.onend = finishSpeak;
-      utter.onerror = finishSpeak;
-
-      window.speechSynthesis.speak(utter);
     }
 
+    // =========================================================
+    // 오디오 인코딩/디코딩 & 끊김 없는 재생 엔진
+    // =========================================================
+    function downsampleTo16k(buffer, sampleRate) {
+      if (sampleRate === 16000) {
+        var outSame = new Int16Array(buffer.length);
+        for (var i = 0; i < buffer.length; i++) {
+          var s = Math.max(-1, Math.min(1, buffer[i]));
+          outSame[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        return outSame;
+      }
+      var ratio = sampleRate / 16000;
+      var newLen = Math.round(buffer.length / ratio);
+      var result = new Int16Array(newLen);
+      var offsetResult = 0;
+      var offsetBuffer = 0;
+      while (offsetResult < result.length) {
+        var nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
+        var accum = 0, count = 0;
+        for (var j = offsetBuffer; j < nextOffsetBuffer && j < buffer.length; j++) {
+          accum += buffer[j];
+          count++;
+        }
+        var sample = Math.max(-1, Math.min(1, accum / (count || 1)));
+        result[offsetResult] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+        offsetResult++;
+        offsetBuffer = nextOffsetBuffer;
+      }
+      return result;
+    }
+
+    function playPcm24kAudio(base64Data) {
+      if (!playbackCtx) return;
+      var binary = atob(base64Data);
+      var bytes = new Uint8Array(binary.length);
+      for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+      var int16 = new Int16Array(bytes.buffer);
+      var float32 = new Float32Array(int16.length);
+      for (var j = 0; j < int16.length; j++) float32[j] = int16[j] / 32768.0;
+
+      var audioBuffer = playbackCtx.createBuffer(1, float32.length, 24000);
+      audioBuffer.getChannelData(0).set(float32);
+
+      var source = playbackCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(playbackCtx.destination);
+
+      var now = playbackCtx.currentTime;
+      if (nextPlayTime < now) nextPlayTime = now + 0.04;
+      source.start(nextPlayTime);
+      nextPlayTime += audioBuffer.duration;
+
+      activeSources.push(source);
+      source.onended = function() {
+        var idx = activeSources.indexOf(source);
+        if (idx !== -1) activeSources.splice(idx, 1);
+      };
+    }
+
+    function stopAllPlayback() {
+      activeSources.forEach(function(src) {
+        try { src.stop(); } catch (e) {}
+      });
+      activeSources = [];
+      nextPlayTime = 0;
+    }
+
+    function arrayBufferToBase64(buffer) {
+      var bytes = new Uint8Array(buffer);
+      var binary = '';
+      var chunkSize = 0x8000;
+      for (var i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+      }
+      return btoa(binary);
+    }
+
+    function stopLiveSession() {
+      if (ws) {
+        try { ws.close(); } catch (e) {}
+      }
+      cleanupLiveSession();
+    }
+
+    function cleanupLiveSession() {
+      isLiveConnected = false;
+      ws = null;
+      stopAllPlayback();
+
+      if (processorNode) { try { processorNode.disconnect(); } catch (e) {} processorNode = null; }
+      if (micSource) { try { micSource.disconnect(); } catch (e) {} micSource = null; }
+      if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); mediaStream = null; }
+      if (captureCtx) { try { captureCtx.close(); } catch (e) {} captureCtx = null; }
+      if (playbackCtx) { try { playbackCtx.close(); } catch (e) {} playbackCtx = null; }
+
+      currentUserBubble = null;
+      currentAiBubble = null;
+      setLiveUI('OFF', '[실시간 음성 대화 시작] 버튼을 눌러 런비스와 통화를 시작하세요.');
+    }
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      var t = document.getElementById('muteBtnTitle');
+      var s = document.getElementById('muteBtnSub');
+      if (isMuted) {
+        t.textContent = '마이크 켜기';
+        s.textContent = '현재 음소거됨';
+        showToast('마이크가 음소거되었습니다.');
+      } else {
+        t.textContent = '마이크 끄기';
+        s.textContent = '일시 음소거';
+        showToast('마이크가 다시 켜졌습니다.');
+      }
+    }
+
+    // 텍스트 입력도 Live 세션으로 바로 전송
     function handleTextSubmit(e) {
       if (e) e.preventDefault();
       var input = document.getElementById('textInput');
       var text = input.value.trim();
       if (!text) return;
       input.value = '';
-      processTextWithGeminiAI(text);
+
+      if (!isLiveConnected || !ws || ws.readyState !== WebSocket.OPEN) {
+        showToast('먼저 [실시간 음성 대화 시작] 버튼을 눌러 연결해 주세요!');
+        return;
+      }
+
+      appendChat('user', text);
+      ws.send(JSON.stringify({
+        clientContent: {
+          turns: [{ role: 'user', parts: [{ text: text }] }],
+          turnComplete: true
+        }
+      }));
+    }
+
+    // =========================================================
+    // UI 및 업무 카드 관리
+    // =========================================================
+    function appendOrUpdateStreamBubble(role, chunkText) {
+      var stream = document.getElementById('chatStream');
+      if (role === 'user') {
+        if (!currentUserBubble) {
+          var wrap = document.createElement('div');
+          wrap.className = 'flex flex-col items-end space-y-1';
+          wrap.innerHTML = '<span class="text-[11px] font-bold text-[#999999]">원장님</span>' +
+            '<div class="bg-[#2c2c2c] border border-[#444444] rounded-lg rounded-tr-none px-3.5 py-2 text-xs sm:text-sm text-white max-w-[90%] leading-relaxed"></div>';
+          stream.appendChild(wrap);
+          currentUserBubble = wrap.querySelector('div');
+        }
+        currentUserBubble.textContent += chunkText;
+      } else {
+        if (!currentAiBubble) {
+          var wrapAi = document.createElement('div');
+          wrapAi.className = 'flex flex-col items-start space-y-1';
+          wrapAi.innerHTML = '<span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>' +
+            '<div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed"></div>';
+          stream.appendChild(wrapAi);
+          currentAiBubble = wrapAi.querySelector('div');
+        }
+        currentAiBubble.textContent += chunkText;
+      }
+      stream.scrollTop = stream.scrollHeight;
+    }
+
+    function appendChat(role, text) {
+      var stream = document.getElementById('chatStream');
+      var wrap = document.createElement('div');
+      if (role === 'user') {
+        wrap.className = 'flex flex-col items-end space-y-1';
+        wrap.innerHTML = '<span class="text-[11px] font-bold text-[#999999]">원장님</span>' +
+          '<div class="bg-[#2c2c2c] border border-[#444444] rounded-lg rounded-tr-none px-3.5 py-2 text-xs sm:text-sm text-white max-w-[90%] leading-relaxed">' + escapeHtml(text) + '</div>';
+      } else if (role === 'system') {
+        wrap.className = 'flex justify-center';
+        wrap.innerHTML = '<div class="bg-[#2a1416] border border-[#E50914]/50 rounded px-3 py-1.5 text-[11px] text-[#ff8a90] break-all">' + escapeHtml(text) + '</div>';
+      } else {
+        wrap.className = 'flex flex-col items-start space-y-1';
+        wrap.innerHTML = '<span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>' +
+          '<div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">' + escapeHtml(text) + '</div>';
+      }
+      stream.appendChild(wrap);
+      stream.scrollTop = stream.scrollHeight;
     }
 
     function renderPendingTasks() {
@@ -948,8 +808,7 @@
       var now = new Date();
       var time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
       actionLogs.unshift({ time: time, text: text });
-      var logArea = document.getElementById('logArea');
-      logArea.innerHTML = actionLogs.map(function(l) {
+      document.getElementById('logArea').innerHTML = actionLogs.map(function(l) {
         return '<div class="bg-[#181818] border border-[#2f2f2f] rounded px-3 py-2 flex items-center justify-between gap-2 text-xs">' +
           '<span class="text-[#DDDDDD] truncate">' + escapeHtml(l.text) + '</span>' +
           '<span class="text-[#777777] shrink-0">' + l.time + ' 완료</span>' +
@@ -957,39 +816,10 @@
       }).join('');
     }
 
-    function clearLogs() {
-      actionLogs = [];
-      document.getElementById('logArea').innerHTML = '<div class="py-3 text-center text-xs text-[#666666]">완료된 내역이 없습니다.</div>';
-    }
-
-    function appendChat(role, text) {
-      var stream = document.getElementById('chatStream');
-      var wrap = document.createElement('div');
-      if (role === 'user') {
-        wrap.className = 'flex flex-col items-end space-y-1';
-        wrap.innerHTML = '<span class="text-[11px] font-bold text-[#999999]">원장님</span>' +
-          '<div class="bg-[#2c2c2c] border border-[#444444] rounded-lg rounded-tr-none px-3.5 py-2 text-xs sm:text-sm text-white max-w-[90%] leading-relaxed">' + escapeHtml(text) + '</div>';
-      } else if (role === 'system') {
-        wrap.className = 'flex justify-center';
-        wrap.innerHTML = '<div class="bg-[#2a1416] border border-[#E50914]/50 rounded px-3 py-1.5 text-[11px] text-[#ff8a90] break-all">' + escapeHtml(text) + '</div>';
-      } else {
-        wrap.className = 'flex flex-col items-start space-y-1';
-        wrap.innerHTML = '<span class="text-[11px] font-bold text-[#E50914]">RUN-VIS</span>' +
-          '<div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">' + escapeHtml(text) + '</div>';
-      }
-      stream.appendChild(wrap);
-      stream.scrollTop = stream.scrollHeight;
-    }
-
-    function clearChat() {
-      chatHistory = [];
-      document.getElementById('chatStream').innerHTML = '';
-    }
-
     function openSettingsModal() {
       document.getElementById('modalApiKeyInput').value = getApiKey();
-      document.getElementById('modalWakeAliasesInput').value = getWakeAliases().join(', ');
-      document.getElementById('modalWakeReplyInput').value = getWakeReply();
+      document.getElementById('modalVoiceSelect').value = getVoiceName();
+      document.getElementById('modalModelInput').value = getLiveModel();
       document.getElementById('settingsModal').classList.remove('hidden');
     }
 
@@ -999,41 +829,37 @@
 
     function saveSettings() {
       var k = document.getElementById('modalApiKeyInput').value.replace(/\s+/g, '').trim();
-      var a = document.getElementById('modalWakeAliasesInput').value.trim();
-      var w = document.getElementById('modalWakeReplyInput').value.trim();
+      var v = document.getElementById('modalVoiceSelect').value;
+      var m = document.getElementById('modalModelInput').value.trim();
       try {
         if (k) localStorage.setItem('runvis_api_key', k);
-        if (a) localStorage.setItem('runvis_wake_aliases', a);
-        if (w) localStorage.setItem('runvis_wake_reply', w);
+        if (v) localStorage.setItem('runvis_live_voice', v);
+        if (m) localStorage.setItem('runvis_live_model', m);
       } catch (e) {}
       closeSettingsModal();
       showToast('설정이 저장되었습니다.');
     }
 
     function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      var badge = document.getElementById('jsReadyBadge');
-      if (badge) {
-        badge.textContent = '시스템 정상 준비됨';
-        badge.className = 'text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold';
-      }
-
-      document.getElementById('micToggleBtn').addEventListener('click', toggleVoiceAssistant);
-      document.getElementById('btnDirectChat').addEventListener('click', handleDirectChatClick);
-      document.getElementById('btnWakeTest').addEventListener('click', runWakeTest);
+      document.getElementById('liveToggleBtn').addEventListener('click', toggleLiveSession);
+      document.getElementById('btnMuteMic').addEventListener('click', toggleMute);
       document.getElementById('btnOpenSettings').addEventListener('click', openSettingsModal);
       document.getElementById('btnCloseSettingsX').addEventListener('click', closeSettingsModal);
       document.getElementById('btnCloseSettings').addEventListener('click', closeSettingsModal);
       document.getElementById('btnSaveSettings').addEventListener('click', saveSettings);
-      document.getElementById('btnClearChat').addEventListener('click', clearChat);
-      document.getElementById('btnClearLogs').addEventListener('click', clearLogs);
+      document.getElementById('btnClearChat').addEventListener('click', function() {
+        document.getElementById('chatStream').innerHTML = '';
+        currentUserBubble = null;
+        currentAiBubble = null;
+      });
+      document.getElementById('btnClearLogs').addEventListener('click', function() {
+        actionLogs = [];
+        document.getElementById('logArea').innerHTML = '<div class="py-3 text-center text-xs text-[#666666]">완료된 내역이 없습니다.</div>';
+      });
       document.getElementById('approveAllBtn').addEventListener('click', approveAllTasks);
       document.getElementById('chatForm').addEventListener('submit', handleTextSubmit);
 
@@ -1048,10 +874,6 @@
           if (target) target.summary = ta.value;
         }
       });
-
-      if (window.speechSynthesis) {
-        window.speechSynthesis.onvoiceschanged = function() { window.speechSynthesis.getVoices(); };
-      }
     });
   </script>
 </body>
