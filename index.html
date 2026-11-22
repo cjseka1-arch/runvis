@@ -57,12 +57,12 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live · 독립 기억 시트 + 구글 검색</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live · 핸즈프리 초고속 + 독립 기억</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
-            기억연동 준비됨
+            즉시응답 모드
           </span>
           <span id="memoryBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#333333] text-[#B3B3B3] font-bold">
-            기억 0건 로드됨
+            기억 스캔 중...
           </span>
         </div>
         <span id="aiModeBadge" class="px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]">
@@ -85,7 +85,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">켤 때 독립 기억 시트 스캔 · "기록해 둬" 자동 저장 · 즉시 반응</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">버튼 없이 말로 바로 호출 · 선 대답 후 시트 저장 · 기억 자동 스캔</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -113,17 +113,17 @@
         <div id="volumeBarWrap" class="hidden space-y-2">
           <div class="relative w-full h-2 bg-[#222222] rounded-full overflow-hidden">
             <div id="volumeBar" class="h-full bg-[#4ade80] transition-all duration-75" style="width: 0%;"></div>
-            <div id="gateMarker" class="absolute top-0 bottom-0 w-0.5 bg-[#E50914] z-10" style="left: 16%;"></div>
+            <div id="gateMarker" class="absolute top-0 bottom-0 w-0.5 bg-[#E50914] z-10" style="left: 28%;"></div>
           </div>
 
           <div class="flex items-center justify-between gap-3 text-[11px]">
-            <span class="text-[#999999] shrink-0">잡음 차단 <strong id="gateValueLabel" class="text-white">8</strong></span>
+            <span class="text-[#999999] shrink-0">잡음 차단 <strong id="gateValueLabel" class="text-white">14</strong></span>
             <input
               id="noiseGateSlider"
               type="range"
               min="0"
               max="40"
-              value="8"
+              value="14"
               class="flex-1 accent-[#E50914] h-1.5 cursor-pointer"
             />
             <span id="gateStatusBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-[#222222] text-[#888888] shrink-0">대기</span>
@@ -146,7 +146,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요! 런비스 전용 기억 시트가 기본 연결되었습니다. 통화를 시작하면 기억을 스캔하고, <strong>"기록해 둬"</strong>라고 하시면 시트에 바로 남깁니다.
+              안녕하세요! 시트 저장을 기다리지 않고 먼저 대답하도록 속도를 끌어올렸습니다. 편하게 불러서 말씀해 보세요!
             </div>
           </div>
         </div>
@@ -284,7 +284,7 @@
     var lastUserVoiceTime = 0;
     var bargeInStreak = 0;
     var serverTurnDone = true;
-    var noiseGateLevel = 8;
+    var noiseGateLevel = 14;
     var gateOpenUntil = 0;
     var lastUiUpdate = 0;
     var suppressOldAudioUntil = 0;
@@ -298,6 +298,8 @@
     var currentAiBubble = null;
     var lastPrecreatedSignature = '';
     var lastPrecreatedAt = 0;
+    var lastSavedMemorySig = '';
+    var lastSavedMemoryAt = 0;
 
     var pendingTasks = [];
     var actionLogs = [];
@@ -378,52 +380,53 @@
       }
     }
 
-    // "이 내용은 기록해 둬" -> 독립 기억 시트 웹앱으로 POST 저장
-    async function saveMemoryToSheet(content, type, isRule) {
+    // 선(先) 대답, 후(後) 백그라운드 시트 저장 (대기 시간 0초)
+    function saveMemoryToSheetBackground(content, type, isRule) {
       var clean = String(content || '').trim();
-      if (!clean) return { ok: false, message: '기록할 내용이 비어 있습니다.' };
+      if (!clean) return;
+
+      var sig = clean.slice(0, 20);
+      var now = Date.now();
+      if (sig === lastSavedMemorySig && (now - lastSavedMemoryAt) < 5000) return;
+      lastSavedMemorySig = sig;
+      lastSavedMemoryAt = now;
 
       var url = getMemoryWebAppUrl();
-      if (!url) return { ok: false, message: '독립 기억 시트 웹앱 URL이 없습니다.' };
+      if (!url) return;
 
-      try {
-        await fetch(url, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            content: clean,
-            type: type || (isRule ? '기억규칙' : '기억메모'),
-            isRule: Boolean(isRule)
-          })
-        });
+      var prefix = isRule ? '[고정 기억 규칙]\n- ' : '[저장된 기억 메모]\n- ';
+      loadedMemoryBlock = (loadedMemoryBlock ? loadedMemoryBlock + '\n' : '') + prefix + clean;
+      updateMemoryBadge(loadedMemoryCount + 1, '기억 ' + (loadedMemoryCount + 1) + '건 저장됨');
 
-        // 저장 직후 로컬 기억 블록에도 즉시 반영해서 현재 세션에서도 바로 기억하도록 함
-        var prefix = isRule ? '[고정 기억 규칙]\n- ' : '[저장된 기억 메모]\n- ';
-        loadedMemoryBlock = (loadedMemoryBlock ? loadedMemoryBlock + '\n' : '') + prefix + clean;
-        updateMemoryBadge(loadedMemoryCount + 1, '기억 ' + (loadedMemoryCount + 1) + '건 연동됨');
+      pendingTasks.unshift({
+        id: 'mem_' + now + '_' + Math.floor(Math.random() * 1000),
+        student: isRule ? '기억규칙' : '기억메모',
+        category: '기억저장',
+        summary: clean,
+        isReport: false
+      });
+      renderPendingTasks();
 
-        pendingTasks.unshift({
-          id: 'mem_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-          student: isRule ? '기억규칙' : '기억메모',
-          category: '기억저장',
-          summary: clean,
-          isReport: false
-        });
-        renderPendingTasks();
-
-        return { ok: true, message: '독립 기억 시트에 기록했습니다: ' + clean };
-      } catch (err) {
-        return { ok: false, message: '기억 저장 중 오류: ' + err.message };
-      }
+      fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          content: clean,
+          type: type || (isRule ? '기억규칙' : '기억메모'),
+          isRule: Boolean(isRule)
+        })
+      }).catch(function(err) {
+        console.warn('백그라운드 기억 저장 오류:', err);
+      });
     }
 
     function updateNoiseGateUI(val) {
       noiseGateLevel = Number(val);
-      if (isNaN(noiseGateLevel)) noiseGateLevel = 8;
+      if (isNaN(noiseGateLevel)) noiseGateLevel = 14;
       document.getElementById('gateValueLabel').textContent = noiseGateLevel;
       document.getElementById('gateMarker').style.left = Math.min(98, noiseGateLevel * 2) + '%';
-      try { localStorage.setItem('runvis_noise_gate_v6', String(noiseGateLevel)); } catch (e) {}
+      try { localStorage.setItem('runvis_noise_gate_v7', String(noiseGateLevel)); } catch (e) {}
     }
 
     function showToast(msg) {
@@ -444,7 +447,14 @@
     function tryPrecreateTaskFromUtterance(utterance) {
       var txt = String(utterance || '').trim();
       if (!txt || txt.length < 3) return;
-      if (/기록\s*해\s*둬|기억\s*해\s*둬|저장\s*해\s*둬/.test(txt)) return;
+
+      // AI가 도구를 빼먹어도 "기록해 둬 / 기억해 둬"는 자동 백그라운드 저장
+      if (/기록\s*해\s*둬|기억\s*해\s*둬|저장\s*해\s*둬/.test(txt)) {
+        var cleanedNote = txt.replace(/(런비스야?|야\s*런비스)?\s*/g, '').replace(/(라고|이라고)?\s*(기록|기억|저장)\s*해\s*둬\.?$/g, '').trim();
+        var isRuleGuess = /불러|호칭|말투|앞으로|항상|규칙/.test(txt);
+        saveMemoryToSheetBackground(cleanedNote || txt, isRuleGuess ? '기억규칙' : '기억메모', isRuleGuess);
+        return;
+      }
 
       var category = '';
       if (/결석/.test(txt)) category = '결석';
@@ -507,7 +517,7 @@
         badge.className = 'px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '켤 때 독립 기억 시트 스캔 · "기록해 둬" 자동 저장 · 즉시 반응';
+        sub.textContent = '버튼 없이 말로 바로 호출 · 선 대답 후 시트 저장 · 기억 자동 스캔';
         swBadge.textContent = 'OFF';
         swBadge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
@@ -559,7 +569,7 @@
           if (isLiveConnected && aiPhase === 'THINKING') {
             setAiPhase('LISTENING');
           }
-        }, 1200);
+        }, 1100);
       } else if (phase === 'SEARCHING') {
         dot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-pulse';
         label.textContent = '검색중';
@@ -695,7 +705,7 @@
               startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
               prefixPaddingMs: 10,
-              silenceDurationMs: 50
+              silenceDurationMs: 40
             }
           },
           inputAudioTranscription: {},
@@ -819,9 +829,9 @@
         var isVoiceDetected = (vol >= activeThreshold);
 
         if (noiseGateLevel === 0) {
-          gateOpenUntil = now + 350;
+          gateOpenUntil = now + 300;
         } else if (vol >= noiseGateLevel) {
-          gateOpenUntil = now + 180;
+          gateOpenUntil = now + 150;
         }
         var isGateOpen = (noiseGateLevel === 0) || (now <= gateOpenUntil);
 
@@ -848,7 +858,7 @@
         }
 
         if (aiPhase === 'SPEAKING' || aiPhase === 'SEARCHING' || activeSources.length > 0) {
-          var bargeThreshold = Math.min(70, Math.max(noiseGateLevel * 2.0, 15));
+          var bargeThreshold = Math.min(70, Math.max(noiseGateLevel * 1.8, 16));
           if (vol >= bargeThreshold) {
             bargeInStreak++;
             if (bargeInStreak >= 1) {
@@ -869,7 +879,7 @@
             userWasSpeaking = true;
             lastUserVoiceTime = now;
             if (aiPhase !== 'LISTENING') setAiPhase('LISTENING');
-          } else if (userWasSpeaking && (now - lastUserVoiceTime > 90)) {
+          } else if (userWasSpeaking && (now - lastUserVoiceTime > 80)) {
             userWasSpeaking = false;
             if (aiPhase === 'LISTENING') setAiPhase('THINKING');
           }
@@ -922,8 +932,9 @@
 
           if (fc.name === 'remember_note') {
             var mArgs = fc.args || {};
-            var saved = await saveMemoryToSheet(mArgs.content, mArgs.category, mArgs.isRule);
-            resObj = { result: saved.message };
+            // 기다리지 않고 백그라운드로 즉시 저장 -> AI가 0.01초 만에 대답 시작
+            saveMemoryToSheetBackground(mArgs.content, mArgs.category, mArgs.isRule);
+            resObj = { result: '독립 기억 시트에 기록 완료했습니다.' };
           } else if (fc.name === 'search_web') {
             var q = (fc.args && fc.args.query) || '';
             var searchResult = await runGoogleSearch(q);
@@ -1301,11 +1312,11 @@
     document.addEventListener('DOMContentLoaded', function() {
       fetchMemoryContext();
 
-      var savedGate = 8;
+      var savedGate = 14;
       try {
-        var rawGate = localStorage.getItem('runvis_noise_gate_v6');
+        var rawGate = localStorage.getItem('runvis_noise_gate_v7');
         if (rawGate !== null && rawGate !== '') savedGate = Number(rawGate);
-        if (isNaN(savedGate)) savedGate = 8;
+        if (isNaN(savedGate)) savedGate = 14;
       } catch (e) {}
       var slider = document.getElementById('noiseGateSlider');
       slider.value = savedGate;
