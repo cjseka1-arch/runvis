@@ -57,7 +57,7 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 초고속 반응 + 소프트 잡음 감소</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 지연 차단 + 최신 지시 우선</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
             준비됨
           </span>
@@ -82,7 +82,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">즉각 반응 · 말하는 도중 바로 끼어들기 가능</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">지연 누적 방지 · 방금 말씀하신 최신 지시만 최우선 처리</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -98,7 +98,7 @@
         </button>
       </div>
 
-      <!-- 실시간 상태, 음량 바 & 잡음 감소 조절 -->
+      <!-- 실시간 상태, 음량 바 & 잡음 감도 조절 -->
       <div class="bg-[#141414] border border-[#333333] rounded-md px-3.5 py-2.5 space-y-2.5">
         <div class="flex items-center justify-between gap-2 text-xs">
           <div class="flex items-center gap-2 min-w-0">
@@ -110,17 +110,17 @@
         <div id="volumeBarWrap" class="hidden space-y-2">
           <div class="relative w-full h-2 bg-[#222222] rounded-full overflow-hidden">
             <div id="volumeBar" class="h-full bg-[#4ade80] transition-all duration-75" style="width: 0%;"></div>
-            <div id="gateMarker" class="absolute top-0 bottom-0 w-0.5 bg-[#E50914] z-10" style="left: 8%;"></div>
+            <div id="gateMarker" class="absolute top-0 bottom-0 w-0.5 bg-[#E50914] z-10" style="left: 12%;"></div>
           </div>
 
           <div class="flex items-center justify-between gap-3 text-[11px]">
-            <span class="text-[#999999] shrink-0">잡음 감도 <strong id="gateValueLabel" class="text-white">8</strong></span>
+            <span class="text-[#999999] shrink-0">잡음 감도 <strong id="gateValueLabel" class="text-white">6</strong></span>
             <input
               id="noiseGateSlider"
               type="range"
               min="2"
               max="35"
-              value="8"
+              value="6"
               class="flex-1 accent-[#E50914] h-1.5 cursor-pointer"
             />
             <span id="gateStatusBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-[#222222] text-[#888888] shrink-0">대기</span>
@@ -143,7 +143,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요, 원장님! 목소리가 끊기지 않게 <strong>소프트 잡음 감소</strong>로 고쳤습니다. 이제 "런비스 응답해 봐"라고 바로 불러보세요!
+              안녕하세요, 원장님! <strong>지연 누적 방지</strong>와 <strong>최신 지시 최우선 처리</strong>가 적용되었습니다. 오래 쓰셔도 밀리지 않고 방금 하신 말씀부터 바로 해결합니다!
             </div>
           </div>
         </div>
@@ -266,13 +266,17 @@
     var nextPlayTime = 0;
     var activeSources = [];
 
+    // ★ 상태 머신 + 지연 방지 + 최신 지시 우선 제어 변수
     var aiPhase = 'OFF';
     var userWasSpeaking = false;
     var lastUserVoiceTime = 0;
     var bargeInStreak = 0;
     var serverTurnDone = true;
-    var noiseGateLevel = 8; // 기본값 8 (낮고 부드럽게)
+    var noiseGateLevel = 6;
     var gateOpenUntil = 0;
+    var lastUiUpdate = 0;
+    var suppressOldAudioUntil = 0;
+    var searchAbortController = null;
 
     var currentUserBubble = null;
     var currentAiBubble = null;
@@ -291,10 +295,10 @@
     }
 
     function updateNoiseGateUI(val) {
-      noiseGateLevel = Number(val) || 8;
+      noiseGateLevel = Number(val) || 6;
       document.getElementById('gateValueLabel').textContent = noiseGateLevel;
       document.getElementById('gateMarker').style.left = Math.min(98, noiseGateLevel * 2) + '%';
-      try { localStorage.setItem('runvis_noise_gate_v2', String(noiseGateLevel)); } catch (e) {}
+      try { localStorage.setItem('runvis_noise_gate_v3', String(noiseGateLevel)); } catch (e) {}
     }
 
     function showToast(msg) {
@@ -303,6 +307,13 @@
       box.classList.remove('opacity-0');
       clearTimeout(box._t);
       box._t = setTimeout(function() { box.classList.add('opacity-0'); }, 2800);
+    }
+
+    function cancelOngoingSearch() {
+      if (searchAbortController) {
+        try { searchAbortController.abort(); } catch (e) {}
+        searchAbortController = null;
+      }
     }
 
     function setAiPhase(phase, customStatus) {
@@ -332,7 +343,7 @@
         badge.className = 'px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '즉각 반응 · 말하는 도중 바로 끼어들기 가능';
+        sub.textContent = '지연 누적 방지 · 방금 말씀하신 최신 지시만 최우선 처리';
         swBadge.textContent = 'OFF';
         swBadge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
@@ -357,7 +368,7 @@
       btn.classList.add('live-active');
       iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
       title.textContent = '통화 종료하기 (LIVE 연결됨)';
-      sub.textContent = '말하는 도중에 끼어들면 즉시 멈추고 다시 듣습니다.';
+      sub.textContent = '새 질문을 하시면 이전 답변은 즉시 멈추고 최신 지시부터 해결합니다.';
       swBadge.textContent = 'LIVE';
       swBadge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
       muteBtn.classList.remove('hidden');
@@ -378,14 +389,13 @@
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#262212] border border-yellow-500/60 text-xs font-bold';
         badge.textContent = '🧠 생각중...';
         badge.className = 'px-2.5 py-1 rounded-full bg-[#262212] border border-yellow-500/60 text-xs font-bold text-yellow-300';
-        statusEl.textContent = customStatus || '런비스가 답변을 생각하고 있습니다...';
+        statusEl.textContent = customStatus || '최신 질문 답변 준비 중...';
 
-        // ★ 3초 이상 응답이 없으면 무한 '생각중'에 빠지지 않게 자동 복귀
         thinkingTimeout = setTimeout(function() {
           if (isLiveConnected && aiPhase === 'THINKING') {
             setAiPhase('LISTENING');
           }
-        }, 3000);
+        }, 2500);
       } else if (phase === 'SEARCHING') {
         dot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-pulse';
         label.textContent = '검색중';
@@ -401,7 +411,7 @@
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#13261a] border border-[#4ade80]/60 text-xs font-bold';
         badge.textContent = '🔊 말하는중';
         badge.className = 'px-2.5 py-1 rounded-full bg-[#13261a] border border-[#4ade80]/60 text-xs font-bold text-[#4ade80]';
-        statusEl.textContent = customStatus || '런비스가 대답하고 있습니다. (말을 걸면 바로 멈춥니다)';
+        statusEl.textContent = customStatus || '런비스가 대답하고 있습니다. (새 말씀을 하시면 바로 전환됩니다)';
       }
     }
 
@@ -501,14 +511,13 @@
               }
             }
           },
-          // ★ 시작/끝 모두 HIGH로 복원하여 즉각 반응
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
               startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
-              prefixPaddingMs: 80,
-              silenceDurationMs: 220
+              prefixPaddingMs: 40,
+              silenceDurationMs: 120
             }
           },
           inputAudioTranscription: {},
@@ -516,9 +525,9 @@
           systemInstruction: {
             parts: [{
               text: '당신은 런수학학원 원장님의 전담 AI 비서 런비스입니다. ' +
-                    '서론이나 군더더기 없이, 친근하고 센스 있는 젊은 비서처럼 자연스러운 한국어 구어체로 1~2문장 이내로 아주 짧고 빠르게 티키타카 하듯 대답하세요. ' +
-                    '날씨, 뉴스, 수능 등급컷, 환율 등 실시간 정보나 모르는 사실을 물어보면 절대 못 찾는다고 하지 말고 반드시 search_web 함수를 호출해 확인 후 답하세요. ' +
-                    '학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 등을 지시하면 create_academy_task 함수를, 승인/발송을 지시하면 approve_all_tasks 함수를 호출하세요.'
+                    '[최우선 원칙] 원장님이 새로운 질문이나 지시를 하면, 이전에 하던 이야기나 끊긴 답변은 완전히 잊고 오직 방금 받은 가장 최근 질문·지시만 최우선으로 즉시 해결하세요. 이전 질문으로 절대 되돌아가지 마세요. ' +
+                    '대답할 때는 길게 고민하지 말고 "네, 원장님!", "아, 그건요~" 같은 짧은 추임새로 즉시 입을 떼며 1~2문장으로 경쾌하게 티키타카 하세요. ' +
+                    '일상 대화는 도구 호출 없이 바로 답하고, 최신 날씨·뉴스·입시 정보를 명시적으로 물을 때만 search_web을, 학생 결석·보강·과제·리포트 지시일 때만 create_academy_task를, 승인/발송 지시일 때만 approve_all_tasks를 호출하세요.'
             }]
           },
           tools: [
@@ -526,32 +535,32 @@
               functionDeclarations: [
                 {
                   name: 'search_web',
-                  description: '구글 실시간 검색을 수행하여 날씨, 뉴스, 입시 정보, 최신 사실 등을 찾아옵니다.',
+                  description: '최신 날씨, 뉴스, 입시 정보 등을 구글에서 검색합니다.',
                   parameters: {
                     type: 'OBJECT',
                     properties: {
-                      query: { type: 'STRING', description: '구글에 검색할 정확한 한국어 검색어' }
+                      query: { type: 'STRING', description: '검색어' }
                     },
                     required: ['query']
                   }
                 },
                 {
                   name: 'create_academy_task',
-                  description: '학생의 결석, 보강, 시간변경, 과제체크, 학부모 리포트 업무를 원장님 승인 대기 목록에 등록합니다.',
+                  description: '학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트를 승인 대기열에 등록합니다.',
                   parameters: {
                     type: 'OBJECT',
                     properties: {
                       student: { type: 'STRING', description: '학생 이름' },
-                      category: { type: 'STRING', description: '결석, 보강, 시간변경, 과제체크, 학부모 리포트 중 하나' },
-                      summary: { type: 'STRING', description: '업무 상세 요약 또는 학부모 문자 초안' },
-                      isReport: { type: 'BOOLEAN', description: '학부모 리포트/문자 초안이면 true' }
+                      category: { type: 'STRING', description: '결석/보강/시간변경/과제체크/학부모 리포트' },
+                      summary: { type: 'STRING', description: '요약 또는 문자 초안' },
+                      isReport: { type: 'BOOLEAN', description: '학부모 리포트 여부' }
                     },
                     required: ['student', 'category', 'summary']
                   }
                 },
                 {
                   name: 'approve_all_tasks',
-                  description: '현재 승인 대기 중인 모든 학원 업무를 일괄 승인 및 처리합니다.',
+                  description: '승인 대기 중인 모든 학원 업무를 일괄 승인합니다.',
                   parameters: { type: 'OBJECT', properties: {} }
                 }
               ]
@@ -564,6 +573,10 @@
     }
 
     async function runGoogleSearch(query) {
+      cancelOngoingSearch();
+      searchAbortController = new AbortController();
+      var signal = searchAbortController.signal;
+
       var apiKey = getApiKey();
       var url = ['https:', '', 'generativelanguage.googleapis.com', 'v1beta', 'models', SEARCH_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey)].join('/');
       try {
@@ -571,6 +584,7 @@
         var res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: signal,
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: query + ' (최신 구글 검색 결과를 바탕으로 핵심 사실만 한국어로 2문장 이내로 짧게 요약해줘)' }] }],
             tools: [{ google_search: {} }],
@@ -578,67 +592,77 @@
           })
         });
         var data = await res.json();
+        searchAbortController = null;
         var parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
         var answer = parts.map(function(p) { return p.text || ''; }).join('').trim();
-        setAiPhase('THINKING', '검색 완료! 답변을 정리하고 있습니다...');
+        setAiPhase('THINKING', '검색 완료!');
         return answer || '검색 결과를 찾지 못했습니다.';
       } catch (err) {
+        searchAbortController = null;
+        if (err && err.name === 'AbortError') {
+          return '이전 검색은 취소되었습니다. 원장님의 가장 최근 질문만 우선 답하세요.';
+        }
         return '검색 중 일시적 오류가 발생했습니다: ' + err.message;
       }
     }
 
     function startMicStreaming() {
       micSource = captureCtx.createMediaStreamSource(mediaStream);
-      processorNode = captureCtx.createScriptProcessor(1024, 1, 1);
+      // ★ 버퍼 2048로 최적화 (초당 패킷 절반 축소 -> 모바일 지연 누적 방지)
+      processorNode = captureCtx.createScriptProcessor(2048, 1, 1);
 
       processorNode.onaudioprocess = function(e) {
         if (!isLiveConnected || !ws || ws.readyState !== WebSocket.OPEN || isMuted) return;
 
         var inputData = e.inputBuffer.getChannelData(0);
 
-        // RMS 음량 계산 (0 ~ 100)
         var sumSq = 0;
         for (var i = 0; i < inputData.length; i++) sumSq += inputData[i] * inputData[i];
         var rms = Math.sqrt(sumSq / inputData.length);
         var vol = Math.min(100, Math.round(rms * 500));
 
-        var volBar = document.getElementById('volumeBar');
-        var gateBadge = document.getElementById('gateStatusBadge');
-        if (volBar) {
-          volBar.style.width = Math.min(100, vol * 2) + '%';
-          volBar.className = (vol >= noiseGateLevel) ? 'h-full bg-[#4ade80] transition-all duration-75' : 'h-full bg-[#555555] transition-all duration-75';
-        }
-
         var now = Date.now();
         var isVoiceDetected = (vol >= noiseGateLevel);
 
         if (isVoiceDetected) {
-          gateOpenUntil = now + 450;
+          gateOpenUntil = now + 220;
         }
-
         var isGateOpen = (now <= gateOpenUntil);
-        if (gateBadge) {
-          if (isGateOpen) {
-            gateBadge.textContent = '목소리 인식';
-            gateBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-[#13261a] text-[#4ade80] font-bold shrink-0';
-          } else {
-            gateBadge.textContent = '잡음 줄임';
-            gateBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-[#222222] text-[#777777] shrink-0';
+
+        // ★ UI 과부하 방지: 0.1초(100ms)마다 한 번씩만 화면 갱신
+        if (now - lastUiUpdate >= 100) {
+          lastUiUpdate = now;
+          var volBar = document.getElementById('volumeBar');
+          var gateBadge = document.getElementById('gateStatusBadge');
+          if (volBar) {
+            volBar.style.width = Math.min(100, vol * 2) + '%';
+            volBar.className = isVoiceDetected ? 'h-full bg-[#4ade80] transition-all duration-75' : 'h-full bg-[#555555] transition-all duration-75';
+          }
+          if (gateBadge) {
+            if (isGateOpen) {
+              gateBadge.textContent = '목소리 전송';
+              gateBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-[#13261a] text-[#4ade80] font-bold shrink-0';
+            } else {
+              gateBadge.textContent = '무음 처리';
+              gateBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-[#222222] text-[#777777] shrink-0';
+            }
           }
         }
 
-        // ★ 1. 말하는 도중 즉시 끼어들기
-        if (aiPhase === 'SPEAKING' || activeSources.length > 0) {
-          var bargeThreshold = Math.min(70, Math.max(noiseGateLevel * 2.2, 18));
+        // ★ 1. 말하는 도중/검색 도중 새 질문 끼어들기 -> 이전 답변/검색 즉시 폐기!
+        if (aiPhase === 'SPEAKING' || aiPhase === 'SEARCHING' || activeSources.length > 0) {
+          var bargeThreshold = Math.min(70, Math.max(noiseGateLevel * 2.2, 16));
           if (vol >= bargeThreshold) {
             bargeInStreak++;
-            if (bargeInStreak >= 4) {
+            if (bargeInStreak >= 2) {
               stopAllPlayback();
+              cancelOngoingSearch();
+              suppressOldAudioUntil = now + 900; // 이전 답변 잔여 음성 차단
               currentAiBubble = null;
               bargeInStreak = 0;
               userWasSpeaking = true;
               lastUserVoiceTime = now;
-              setAiPhase('LISTENING', '🎤 원장님 말씀을 다시 듣고 있습니다...');
+              setAiPhase('LISTENING', '🎤 최신 말씀을 최우선으로 듣고 있습니다...');
             }
           } else {
             bargeInStreak = 0;
@@ -648,10 +672,10 @@
           if (isVoiceDetected) {
             userWasSpeaking = true;
             lastUserVoiceTime = now;
-            if (aiPhase !== 'LISTENING' && aiPhase !== 'SEARCHING') {
+            if (aiPhase !== 'LISTENING') {
               setAiPhase('LISTENING');
             }
-          } else if (userWasSpeaking && (now - lastUserVoiceTime > 350)) {
+          } else if (userWasSpeaking && (now - lastUserVoiceTime > 260)) {
             userWasSpeaking = false;
             if (aiPhase === 'LISTENING') {
               setAiPhase('THINKING');
@@ -659,11 +683,21 @@
           }
         }
 
-        // ★ 3. 소프트 잡음 감소: 잡음 구간도 0으로 자르지 않고 15% 볼륨으로 부드럽게 낮춰 전송
-        var gain = isGateOpen ? 1.0 : 0.15;
-        var pcm16 = downsampleTo16k(inputData, captureCtx.sampleRate, gain);
-        var b64 = arrayBufferToBase64(pcm16.buffer);
+        // ★ 3. 지연 누적 원천 차단: 전송 대기열이 32KB 넘게 밀려있으면 오래된 조각 과감히 스킵
+        if (ws.bufferedAmount > 32768) {
+          return;
+        }
 
+        var pcm16;
+        if (isGateOpen) {
+          pcm16 = downsampleTo16k(inputData, captureCtx.sampleRate);
+        } else {
+          var ratio = captureCtx.sampleRate / 16000;
+          var silentLen = Math.round(inputData.length / ratio);
+          pcm16 = new Int16Array(silentLen);
+        }
+
+        var b64 = arrayBufferToBase64(pcm16.buffer);
         ws.send(JSON.stringify({
           realtimeInput: {
             mediaChunks: [{
@@ -685,6 +719,7 @@
         userWasSpeaking = false;
         bargeInStreak = 0;
         serverTurnDone = true;
+        suppressOldAudioUntil = 0;
         setAiPhase('LISTENING', '🎤 연결 완료! 지금 바로 편하게 말씀하세요.');
         startMicStreaming();
         return;
@@ -710,7 +745,7 @@
               isReport: !!a.isReport || a.category === '학부모 리포트'
             });
             renderPendingTasks();
-            resObj = { result: a.student + ' 학생 ' + a.category + ' 건을 승인 대기 목록에 등록했습니다.' };
+            resObj = { result: a.student + ' 학생 ' + a.category + ' 건을 승인 대기 목록 최상단에 등록했습니다.' };
           } else if (fc.name === 'approve_all_tasks') {
             approveAllTasks();
             resObj = { result: '대기 중인 모든 작업을 승인 완료했습니다.' };
@@ -729,6 +764,7 @@
 
         if (sc.interrupted) {
           stopAllPlayback();
+          suppressOldAudioUntil = 0; // 서버도 이전 응답 정리 완료 -> 다음부터는 새 답변
           currentAiBubble = null;
           serverTurnDone = true;
           if (isLiveConnected) setAiPhase('LISTENING');
@@ -740,13 +776,17 @@
         }
 
         if (sc.outputTranscription && sc.outputTranscription.text) {
-          appendOrUpdateStreamBubble('assistant', sc.outputTranscription.text);
-          currentUserBubble = null;
+          if (Date.now() >= suppressOldAudioUntil) {
+            appendOrUpdateStreamBubble('assistant', sc.outputTranscription.text);
+            currentUserBubble = null;
+          }
         }
 
         if (sc.modelTurn && sc.modelTurn.parts) {
           sc.modelTurn.parts.forEach(function(part) {
             if (part.inlineData && part.inlineData.data) {
+              // 끼어들기 직후 뒤늦게 도착한 이전 답변 잔여 음성은 무시
+              if (Date.now() < suppressOldAudioUntil) return;
               serverTurnDone = false;
               if (aiPhase !== 'SPEAKING') setAiPhase('SPEAKING');
               playPcm24kAudio(part.inlineData.data);
@@ -756,6 +796,7 @@
 
         if (sc.turnComplete) {
           serverTurnDone = true;
+          suppressOldAudioUntil = 0;
           currentUserBubble = null;
           currentAiBubble = null;
           if (activeSources.length === 0 && isLiveConnected) {
@@ -765,12 +806,11 @@
       }
     }
 
-    function downsampleTo16k(buffer, sampleRate, gain) {
-      var g = (gain === undefined) ? 1.0 : gain;
+    function downsampleTo16k(buffer, sampleRate) {
       if (sampleRate === 16000) {
         var outSame = new Int16Array(buffer.length);
         for (var i = 0; i < buffer.length; i++) {
-          var s = Math.max(-1, Math.min(1, buffer[i] * g));
+          var s = Math.max(-1, Math.min(1, buffer[i]));
           outSame[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
         return outSame;
@@ -787,7 +827,7 @@
           accum += buffer[j];
           count++;
         }
-        var sample = Math.max(-1, Math.min(1, (accum / (count || 1)) * g));
+        var sample = Math.max(-1, Math.min(1, accum / (count || 1)));
         result[offsetResult] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
         offsetResult++;
         offsetBuffer = nextOffsetBuffer;
@@ -852,6 +892,7 @@
 
     function cleanupLiveSession() {
       clearTimeout(thinkingTimeout);
+      cancelOngoingSearch();
       isLiveConnected = false;
       ws = null;
       stopAllPlayback();
@@ -866,6 +907,7 @@
       currentAiBubble = null;
       userWasSpeaking = false;
       bargeInStreak = 0;
+      suppressOldAudioUntil = 0;
       if (userEndedSession) setAiPhase('OFF');
     }
 
@@ -895,6 +937,11 @@
         showToast('먼저 [실시간 음성 대화 시작] 버튼을 눌러 연결해 주세요!');
         return;
       }
+
+      // 텍스트로 새 지시 시에도 기존 재생·검색 즉시 중단
+      stopAllPlayback();
+      cancelOngoingSearch();
+      suppressOldAudioUntil = 0;
 
       appendChat('user', text);
       setAiPhase('THINKING');
@@ -1041,8 +1088,8 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      var savedGate = 8;
-      try { savedGate = Number(localStorage.getItem('runvis_noise_gate_v2')) || 8; } catch (e) {}
+      var savedGate = 6;
+      try { savedGate = Number(localStorage.getItem('runvis_noise_gate_v3')) || 6; } catch (e) {}
       var slider = document.getElementById('noiseGateSlider');
       slider.value = savedGate;
       updateNoiseGateUI(savedGate);
