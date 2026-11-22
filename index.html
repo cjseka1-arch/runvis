@@ -59,7 +59,7 @@
         <div class="flex items-center gap-2">
           <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live · 잡음 컨트롤 + 구글 검색</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
-            초고속 모드
+            즉시반응 모드
           </span>
         </div>
         <span id="aiModeBadge" class="px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]">
@@ -143,7 +143,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요, 원장님! 반응 속도를 더 빠르게 다듬었습니다. 편하게 불러서 바로 말씀해 보세요!
+              안녕하세요, 원장님! 지시하시면 화면에 카드를 먼저 띄우고 빠르게 응답하도록 다듬었습니다.
             </div>
           </div>
         </div>
@@ -152,7 +152,7 @@
           <input
             id="textInput"
             type="text"
-            placeholder="통화 중 글자로도 입력 가능"
+            placeholder="통화 중 글자로도 입력 가능 (예: 조현주 학생 결석처리 해줘)"
             class="flex-1 bg-[#111111] border border-[#333333] focus:border-white rounded-md px-3 py-2 text-xs sm:text-sm text-white outline-none"
           />
           <button
@@ -279,6 +279,8 @@
 
     var currentUserBubble = null;
     var currentAiBubble = null;
+    var lastPrecreatedSignature = '';
+    var lastPrecreatedAt = 0;
 
     var pendingTasks = [];
     var actionLogs = [];
@@ -306,7 +308,7 @@
       box.textContent = msg;
       box.classList.remove('opacity-0');
       clearTimeout(box._t);
-      box._t = setTimeout(function() { box.classList.add('opacity-0'); }, 2400);
+      box._t = setTimeout(function() { box.classList.add('opacity-0'); }, 2200);
     }
 
     function cancelOngoingSearch() {
@@ -314,6 +316,46 @@
         try { searchAbortController.abort(); } catch (e) {}
         searchAbortController = null;
       }
+    }
+
+    // 음성/글자 인식 즉시 학원 업무 키워드를 잡아 승인 카드를 먼저 띄움 (서버 응답 대기 시간 단축)
+    function tryPrecreateTaskFromUtterance(utterance) {
+      var txt = String(utterance || '').trim();
+      if (!txt || txt.length < 3) return;
+
+      var category = '';
+      if (/결석/.test(txt)) category = '결석';
+      else if (/보강/.test(txt)) category = '보강';
+      else if (/시간\s*변경|변경/.test(txt)) category = '시간변경';
+      else if (/과제|숙제/.test(txt)) category = '과제체크';
+      else if (/리포트/.test(txt)) category = '학부모 리포트';
+
+      if (!category) return;
+
+      // "조현주 학생 결석처리 해줘" -> "조현주" 추출 시도
+      var student = '학생';
+      var nameMatch = txt.match(/([가-힣]{2,4})\s*(학생|님|이|가|은|는)?\s*(오늘|내일|모레|\d+시)?\s*(결석|보강|시간변경|변경|과제|숙제|리포트)/);
+      if (nameMatch && nameMatch[1]) {
+        var candidate = nameMatch[1].trim();
+        if (['오늘', '내일', '모레', '방금', '지금', '학원', '선생님', '원장님', '런비스'].indexOf(candidate) === -1) {
+          student = candidate;
+        }
+      }
+
+      var sig = student + '|' + category + '|' + txt.slice(0, 12);
+      var now = Date.now();
+      if (sig === lastPrecreatedSignature && (now - lastPrecreatedAt) < 4000) return;
+      lastPrecreatedSignature = sig;
+      lastPrecreatedAt = now;
+
+      pendingTasks.unshift({
+        id: 'task_' + now + '_' + Math.floor(Math.random() * 1000),
+        student: student,
+        category: category,
+        summary: txt,
+        isReport: category === '학부모 리포트'
+      });
+      renderPendingTasks();
     }
 
     function setAiPhase(phase, customStatus) {
@@ -381,21 +423,21 @@
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold';
         badge.textContent = '🎤 듣는중';
         badge.className = 'px-2.5 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold text-[#ff6b72]';
-        statusEl.textContent = customStatus || '원장님 말씀을 듣고 있습니다... "런비스" 하고 불러보세요.';
+        statusEl.textContent = customStatus || '원장님 말씀을 듣고 있습니다... 바로 지시해 주세요.';
       } else if (phase === 'THINKING') {
         dot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse';
         label.textContent = '생각중';
         label.className = 'text-yellow-300 font-bold';
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#262212] border border-yellow-500/60 text-xs font-bold';
-        badge.textContent = '🧠 생각중...';
+        badge.textContent = '⚡ 즉시처리중';
         badge.className = 'px-2.5 py-1 rounded-full bg-[#262212] border border-yellow-500/60 text-xs font-bold text-yellow-300';
-        statusEl.textContent = customStatus || '즉시 응답 준비 중...';
+        statusEl.textContent = customStatus || '즉시 응답 생성 중...';
 
         thinkingTimeout = setTimeout(function() {
           if (isLiveConnected && aiPhase === 'THINKING') {
             setAiPhase('LISTENING');
           }
-        }, 1400);
+        }, 1200);
       } else if (phase === 'SEARCHING') {
         dot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-pulse';
         label.textContent = '검색중';
@@ -480,7 +522,7 @@
             reconnectTimer = setTimeout(function() {
               reconnectTimer = null;
               if (!userEndedSession) startLiveSession(true);
-            }, 400);
+            }, 300);
           } else if (!userEndedSession && e.reason) {
             appendChat('system', '연결 실패: ' + e.reason);
           }
@@ -501,7 +543,7 @@
           model: model,
           generationConfig: {
             responseModalities: ['AUDIO'],
-            temperature: 0.5,
+            temperature: 0.4,
             speechConfig: {
               voiceConfig: {
                 prebuiltVoiceConfig: {
@@ -515,8 +557,8 @@
               disabled: false,
               startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
-              prefixPaddingMs: 20,
-              silenceDurationMs: 80
+              prefixPaddingMs: 10,
+              silenceDurationMs: 50
             }
           },
           inputAudioTranscription: {},
@@ -524,11 +566,12 @@
           systemInstruction: {
             parts: [{
               text: '당신은 런수학학원 원장님의 전담 AI 비서 런비스입니다. ' +
-                    '[속도 최우선 규칙] 망설이지 말고 0.1초 만에 첫 마디를 떼세요. 군더더기 서론을 빼고 1~2문장으로 간결하고 경쾌하게 답하세요. ' +
-                    '[호출 응답 규칙] "런비스", "런비스야", "야 런비스"라고 부르면 즉시 "네, 원장님!"이라고 짧게 답하세요. ' +
-                    '[최우선 원칙] 새 질문이나 지시가 들어오면 이전 맥락은 버리고 방금 받은 가장 최근 질문·지시만 바로 처리하세요. ' +
-                    '날씨, 뉴스, 입시 정보, 최신 사실 등 검색이 필요한 질문에는 search_web 함수를 호출하세요. ' +
-                    '학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 지시에는 create_academy_task 함수를, 승인/발송 지시에는 approve_all_tasks 함수를 호출하세요.'
+                    '[초고속 단답 규칙] 망설이지 말고 0.1초 만에 첫 마디를 꺼내세요. 설명을 길게 늘이지 말고 1문장으로 짧게 답하세요. ' +
+                    '예: 결석 지시에는 "조현주 학생 결석 대기열에 올렸습니다."처럼 딱 한 줄만 말하세요. ' +
+                    '[호출 응답 규칙] "런비스"라고 부르면 즉시 "네, 원장님!"이라고만 답하세요. ' +
+                    '[최우선 원칙] 새 지시가 오면 이전 대화는 잊고 방금 지시만 바로 처리하세요. ' +
+                    '날씨, 뉴스, 입시 등 검색이 필요한 질문에는 search_web 함수를 호출하세요. ' +
+                    '학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 지시에는 create_academy_task 함수를 호출하세요.'
             }]
           },
           tools: [
@@ -593,9 +636,9 @@
           headers: { 'Content-Type': 'application/json' },
           signal: signal,
           body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: trimmed + ' (핵심 사실만 한국어 1~2문장으로 초간단 요약)' }] }],
+            contents: [{ role: 'user', parts: [{ text: trimmed + ' (핵심 사실만 한국어 1문장으로 초간단 요약)' }] }],
             tools: [{ google_search: {} }],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 180, thinkingConfig: { thinkingBudget: 0 } }
+            generationConfig: { temperature: 0.2, maxOutputTokens: 140, thinkingConfig: { thinkingBudget: 0 } }
           })
         });
         var data = await res.json();
@@ -634,13 +677,13 @@
         var isVoiceDetected = (vol >= activeThreshold);
 
         if (noiseGateLevel === 0) {
-          gateOpenUntil = now + 400;
+          gateOpenUntil = now + 350;
         } else if (vol >= noiseGateLevel) {
-          gateOpenUntil = now + 200;
+          gateOpenUntil = now + 180;
         }
         var isGateOpen = (noiseGateLevel === 0) || (now <= gateOpenUntil);
 
-        if (now - lastUiUpdate >= 80) {
+        if (now - lastUiUpdate >= 70) {
           lastUiUpdate = now;
           var volBar = document.getElementById('volumeBar');
           var gateBadge = document.getElementById('gateStatusBadge');
@@ -662,15 +705,14 @@
           }
         }
 
-        // 말하는 도중/검색 도중 즉시 끼어들기 -> 이전 답변·검색 즉시 폐기
         if (aiPhase === 'SPEAKING' || aiPhase === 'SEARCHING' || activeSources.length > 0) {
-          var bargeThreshold = Math.min(70, Math.max(noiseGateLevel * 2.0, 16));
+          var bargeThreshold = Math.min(70, Math.max(noiseGateLevel * 2.0, 15));
           if (vol >= bargeThreshold) {
             bargeInStreak++;
             if (bargeInStreak >= 1) {
               stopAllPlayback();
               cancelOngoingSearch();
-              suppressOldAudioUntil = now + 220;
+              suppressOldAudioUntil = now + 180;
               currentAiBubble = null;
               bargeInStreak = 0;
               userWasSpeaking = true;
@@ -685,13 +727,13 @@
             userWasSpeaking = true;
             lastUserVoiceTime = now;
             if (aiPhase !== 'LISTENING') setAiPhase('LISTENING');
-          } else if (userWasSpeaking && (now - lastUserVoiceTime > 150)) {
+          } else if (userWasSpeaking && (now - lastUserVoiceTime > 90)) {
             userWasSpeaking = false;
             if (aiPhase === 'LISTENING') setAiPhase('THINKING');
           }
         }
 
-        if (ws.bufferedAmount > 16384) return;
+        if (ws.bufferedAmount > 8192) return;
 
         var pcm16;
         if (isGateOpen) {
@@ -725,7 +767,7 @@
         bargeInStreak = 0;
         serverTurnDone = true;
         suppressOldAudioUntil = 0;
-        setAiPhase('LISTENING', '🎤 연결 완료! "런비스" 하고 불러보세요.');
+        setAiPhase('LISTENING', '🎤 연결 완료! 바로 말씀해 주세요.');
         startMicStreaming();
         return;
       }
@@ -742,18 +784,31 @@
             resObj = { result: searchResult };
           } else if (fc.name === 'create_academy_task') {
             var a = fc.args || {};
-            pendingTasks.unshift({
-              id: 'task_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-              student: a.student || '학생',
-              category: a.category || '업무처리',
-              summary: a.summary || '',
-              isReport: !!a.isReport || a.category === '학부모 리포트'
+            var newStudent = a.student || '학생';
+            var newCat = a.category || '업무처리';
+            var newSum = a.summary || '';
+
+            // 이미 선등록된 직전 카드가 있으면 중복 대신 깔끔하게 보완
+            var existingIdx = pendingTasks.findIndex(function(item) {
+              return item.category === newCat && (item.student === '학생' || item.student === newStudent);
             });
+            if (existingIdx !== -1 && pendingTasks[existingIdx].student === '학생' && newStudent !== '학생') {
+              pendingTasks[existingIdx].student = newStudent;
+              if (newSum) pendingTasks[existingIdx].summary = newSum;
+            } else if (existingIdx === -1) {
+              pendingTasks.unshift({
+                id: 'task_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+                student: newStudent,
+                category: newCat,
+                summary: newSum,
+                isReport: !!a.isReport || newCat === '학부모 리포트'
+              });
+            }
             renderPendingTasks();
-            resObj = { result: a.student + ' 학생 ' + a.category + ' 건을 승인 대기 목록 최상단에 등록했습니다.' };
+            resObj = { result: newStudent + ' ' + newCat + ' 등록 완료.' };
           } else if (fc.name === 'approve_all_tasks') {
             approveAllTasks();
-            resObj = { result: '대기 중인 모든 작업을 승인 완료했습니다.' };
+            resObj = { result: '전체 승인 완료.' };
           }
           responses.push({ id: fc.id, name: fc.name, response: resObj });
         }
@@ -777,6 +832,7 @@
 
         if (sc.inputTranscription && sc.inputTranscription.text) {
           appendOrUpdateStreamBubble('user', sc.inputTranscription.text);
+          tryPrecreateTaskFromUtterance(currentUserBubble ? currentUserBubble.textContent : sc.inputTranscription.text);
           currentAiBubble = null;
         }
 
@@ -799,6 +855,9 @@
         }
 
         if (sc.turnComplete) {
+          if (currentUserBubble && currentUserBubble.textContent) {
+            tryPrecreateTaskFromUtterance(currentUserBubble.textContent);
+          }
           serverTurnDone = true;
           suppressOldAudioUntil = 0;
           currentUserBubble = null;
@@ -946,6 +1005,7 @@
       suppressOldAudioUntil = 0;
 
       appendChat('user', text);
+      tryPrecreateTaskFromUtterance(text);
       setAiPhase('THINKING');
       ws.send(JSON.stringify({
         clientContent: {
