@@ -37,11 +37,6 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <button
-          type="button"
-          id="btnToggleSearch"
-          class="px-2.5 py-1.5 rounded bg-[#181818] border border-[#333333] text-[11px] font-bold text-[#999999] hover:text-white cursor-pointer"
-        >검색 OFF</button>
         <div id="statePill" class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181818] border border-[#333333] text-xs font-bold text-[#999999]">
           <span id="stateDot" class="w-2 h-2 rounded-full bg-[#666666]"></span>
           <span id="stateLabel">대기중</span>
@@ -62,7 +57,7 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 초고속 티키타카 모드</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 초고속 대화 + 자동 검색</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
             준비됨
           </span>
@@ -85,7 +80,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">0.3초 초고속 반응 · 언제든 말을 끊고 대화할 수 있습니다.</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">초고속 반응 · 필요할 때만 자동 구글 검색 · 15분 자동 재접속</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -129,7 +124,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요, 원장님! <strong>초고속 반응 튜닝</strong>과 <strong>젊은 여성 목소리(Leda)</strong>가 적용되었습니다. 바로 통화를 시작해 보세요!
+              안녕하세요, 원장님! <strong>자동 구글 검색 엔진</strong>과 <strong>무중단 재접속</strong>이 업그레이드되었습니다. 날씨나 최신 뉴스도 편하게 물어보세요!
             </div>
           </div>
         </div>
@@ -234,14 +229,15 @@
 
   <script>
     var DEFAULT_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
+    var SEARCH_MODEL = 'gemini-2.5-flash';
     var DEFAULT_VOICE = 'Leda';
 
     var ws = null;
     var isLiveConnected = false;
     var isMuted = false;
-    var isSearchEnabled = false;
+    var userEndedSession = false;
+    var reconnectTimer = null;
 
-    // 오디오 입출력 변수
     var captureCtx = null;
     var playbackCtx = null;
     var mediaStream = null;
@@ -250,7 +246,6 @@
     var nextPlayTime = 0;
     var activeSources = [];
 
-    // 자막 버퍼
     var currentUserBubble = null;
     var currentAiBubble = null;
 
@@ -273,28 +268,6 @@
       box.classList.remove('opacity-0');
       clearTimeout(box._t);
       box._t = setTimeout(function() { box.classList.add('opacity-0'); }, 2800);
-    }
-
-    function updateSearchBtnUI() {
-      var btn = document.getElementById('btnToggleSearch');
-      if (isSearchEnabled) {
-        btn.textContent = '검색 ON';
-        btn.className = 'px-2.5 py-1.5 rounded bg-[#13261a] border border-[#4ade80]/60 text-[11px] font-bold text-[#4ade80] cursor-pointer';
-      } else {
-        btn.textContent = '검색 OFF';
-        btn.className = 'px-2.5 py-1.5 rounded bg-[#181818] border border-[#333333] text-[11px] font-bold text-[#999999] hover:text-white cursor-pointer';
-      }
-    }
-
-    function toggleSearchMode() {
-      isSearchEnabled = !isSearchEnabled;
-      try { localStorage.setItem('runvis_search_on', isSearchEnabled ? '1' : '0'); } catch (e) {}
-      updateSearchBtnUI();
-      if (isLiveConnected) {
-        showToast(isSearchEnabled ? '검색 ON (통화를 껐다 켜면 적용됩니다)' : '검색 OFF · 초고속 모드 (통화를 껐다 켜면 적용됩니다)');
-      } else {
-        showToast(isSearchEnabled ? '구글 실시간 검색 모드가 켜졌습니다.' : '초고속 대화 모드(검색 OFF)로 전환되었습니다.');
-      }
     }
 
     function setLiveUI(state, statusText) {
@@ -320,7 +293,7 @@
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181818] border border-[#333333] text-xs font-bold';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '0.3초 초고속 반응 · 언제든 말을 끊고 대화할 수 있습니다.';
+        sub.textContent = '초고속 반응 · 필요할 때만 자동 구글 검색 · 15분 자동 재접속';
         badge.textContent = 'OFF';
         badge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
@@ -343,25 +316,32 @@
         btn.classList.add('live-active');
         iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
         title.textContent = '통화 종료하기 (LIVE 연결됨)';
-        sub.textContent = '편하게 말씀하세요! 대답 도중에 말을 끊어도 바로 듣습니다.';
+        sub.textContent = '편하게 말씀하세요! 최신 정보도 알아서 구글 검색해 답합니다.';
         badge.textContent = 'LIVE';
         badge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
         muteBtn.classList.remove('hidden');
         volWrap.classList.remove('hidden');
-        diag.textContent = isSearchEnabled ? '🟢 실시간 연결 (검색 ON)' : '⚡ 초고속 티키타카 연결됨';
+        diag.textContent = '⚡ 초고속 연결 + 자동 검색 대기';
         diag.className = 'text-xs font-bold text-[#4ade80]';
       }
     }
 
     // =========================================================
-    // 실시간 Live 연결 시작 / 종료
+    // 실시간 Live 연결 시작 / 종료 + 자동 재접속
     // =========================================================
     function toggleLiveSession() {
-      if (isLiveConnected || ws) stopLiveSession();
-      else startLiveSession();
+      if (isLiveConnected || ws || reconnectTimer) {
+        userEndedSession = true;
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        stopLiveSession();
+      } else {
+        userEndedSession = false;
+        startLiveSession(false);
+      }
     }
 
-    async function startLiveSession() {
+    async function startLiveSession(isAutoReconnect) {
       var apiKey = getApiKey();
       if (!apiKey) {
         showToast('먼저 우측 상단 [설정]에서 Gemini API 키를 입력해 주세요!');
@@ -369,7 +349,7 @@
         return;
       }
 
-      setLiveUI('CONNECTING', '마이크 권한과 제미나이 Live 서버를 연결하고 있습니다...');
+      setLiveUI('CONNECTING', isAutoReconnect ? '세션 만료로 1초 만에 자동 재접속 중...' : '마이크 권한과 제미나이 Live 서버를 연결하고 있습니다...');
 
       try {
         var AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -406,16 +386,25 @@
         };
 
         ws.onerror = function() {
-          appendChat('system', 'WebSocket 연결 오류가 발생했습니다. API 키와 네트워크를 확인해 주세요.');
+          if (!isAutoReconnect) {
+            appendChat('system', 'WebSocket 연결 오류가 발생했습니다.');
+          }
         };
 
         ws.onclose = function(e) {
-          if (isLiveConnected) {
-            appendChat('system', '통화가 종료되었습니다. (코드: ' + e.code + (e.reason ? ' / ' + e.reason : '') + ')');
-          } else if (e.reason) {
+          var wasConnected = isLiveConnected;
+          cleanupLiveSession();
+
+          // 원장님이 직접 끈 게 아니고, 통화 도중 끊겼다면 1초 뒤 자동 재접속!
+          if (!userEndedSession && wasConnected) {
+            setLiveUI('CONNECTING', '세션 갱신을 위해 자동 재접속 중입니다...');
+            reconnectTimer = setTimeout(function() {
+              reconnectTimer = null;
+              if (!userEndedSession) startLiveSession(true);
+            }, 1000);
+          } else if (!userEndedSession && e.reason) {
             appendChat('system', '연결 실패: ' + e.reason);
           }
-          cleanupLiveSession();
         };
 
       } catch (err) {
@@ -427,37 +416,6 @@
     function sendSetupMessage() {
       var model = getLiveModel();
       if (model.indexOf('models/') !== 0) model = 'models/' + model;
-
-      var toolsList = [
-        {
-          functionDeclarations: [
-            {
-              name: 'create_academy_task',
-              description: '학생의 결석, 보강, 시간변경, 과제체크, 학부모 리포트 업무를 원장님 승인 대기 목록에 등록합니다.',
-              parameters: {
-                type: 'OBJECT',
-                properties: {
-                  student: { type: 'STRING', description: '학생 이름' },
-                  category: { type: 'STRING', description: '결석, 보강, 시간변경, 과제체크, 학부모 리포트 중 하나' },
-                  summary: { type: 'STRING', description: '업무 상세 요약 또는 학부모 문자 초안' },
-                  isReport: { type: 'BOOLEAN', description: '학부모 리포트/문자 초안이면 true' }
-                },
-                required: ['student', 'category', 'summary']
-              }
-            },
-            {
-              name: 'approve_all_tasks',
-              description: '현재 승인 대기 중인 모든 학원 업무를 일괄 승인 및 처리합니다.',
-              parameters: { type: 'OBJECT', properties: {} }
-            }
-          ]
-        }
-      ];
-
-      // 검색 ON일 때만 구글 검색 도구 활성화 (OFF일 때 반응 속도 극대화)
-      if (isSearchEnabled) {
-        toolsList.unshift({ googleSearch: {} });
-      }
 
       var setupMsg = {
         setup: {
@@ -472,7 +430,6 @@
               }
             }
           },
-          // ★ 초고속 반응 튜닝: 말 끝 감지 민감도 최상 + 대기 시간 0.3초 단축
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
@@ -487,21 +444,81 @@
           systemInstruction: {
             parts: [{
               text: '당신은 런수학학원 원장님의 전담 AI 비서 런비스입니다. ' +
-                    '기계적인 존댓말을 절대 쓰지 말고, 친근하고 센스 있는 젊은 비서처럼 자연스러운 한국어 구어체로 1~2문장 이내로 아주 짧고 경쾌하게 티키타카 하듯 대답하세요. ' +
-                    '원장님이 학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 등을 지시하면 반드시 create_academy_task 함수를 호출하고, ' +
-                    '승인하거나 문자 보내라고 하면 approve_all_tasks 함수를 호출하세요.'
+                    '기계적인 존댓말을 절대 쓰지 말고, 친근하고 센스 있는 젊은 비서처럼 자연스러운 한국어 구어체로 1~2문장 이내로 짧고 경쾌하게 티키타카 하듯 대답하세요. ' +
+                    '원장님이 날씨, 뉴스, 수능 등급컷, 환율, 맛집, 최신 정보 등 실시간 정보나 모르는 사실을 물어보면 절대 "검색할 수 없다"고 말하지 말고 반드시 search_web 함수를 호출해서 검색 결과를 확인한 뒤 자연스럽게 답하세요. ' +
+                    '학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 등을 지시하면 반드시 create_academy_task 함수를 호출하고, 승인/발송을 지시하면 approve_all_tasks 함수를 호출하세요.'
             }]
           },
-          tools: toolsList
+          tools: [
+            {
+              functionDeclarations: [
+                {
+                  name: 'search_web',
+                  description: '구글 실시간 검색을 수행하여 날씨, 뉴스, 입시 정보, 최신 사실 등을 찾아옵니다.',
+                  parameters: {
+                    type: 'OBJECT',
+                    properties: {
+                      query: { type: 'STRING', description: '구글에 검색할 정확한 한국어 검색어' }
+                    },
+                    required: ['query']
+                  }
+                },
+                {
+                  name: 'create_academy_task',
+                  description: '학생의 결석, 보강, 시간변경, 과제체크, 학부모 리포트 업무를 원장님 승인 대기 목록에 등록합니다.',
+                  parameters: {
+                    type: 'OBJECT',
+                    properties: {
+                      student: { type: 'STRING', description: '학생 이름' },
+                      category: { type: 'STRING', description: '결석, 보강, 시간변경, 과제체크, 학부모 리포트 중 하나' },
+                      summary: { type: 'STRING', description: '업무 상세 요약 또는 학부모 문자 초안' },
+                      isReport: { type: 'BOOLEAN', description: '학부모 리포트/문자 초안이면 true' }
+                    },
+                    required: ['student', 'category', 'summary']
+                  }
+                },
+                {
+                  name: 'approve_all_tasks',
+                  description: '현재 승인 대기 중인 모든 학원 업무를 일괄 승인 및 처리합니다.',
+                  parameters: { type: 'OBJECT', properties: {} }
+                }
+              ]
+            }
+          ]
         }
       };
 
       ws.send(JSON.stringify(setupMsg));
     }
 
+    // ★ 백그라운드 구글 실시간 검색 엔진 (충돌 없음)
+    async function runGoogleSearch(query) {
+      var apiKey = getApiKey();
+      var url = ['https:', '', 'generativelanguage.googleapis.com', 'v1beta', 'models', SEARCH_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey)].join('/');
+      try {
+        document.getElementById('liveStatusText').textContent = '🔍 구글 실시간 검색 중: "' + query + '"';
+        var res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: query + ' (최신 구글 검색 결과를 바탕으로 핵심 사실만 한국어로 2~3문장 이내로 요약해줘)' }] }],
+            tools: [{ google_search: {} }],
+            generationConfig: { temperature: 0.3, maxOutputTokens: 300, thinkingConfig: { thinkingBudget: 0 } }
+          })
+        });
+        var data = await res.json();
+        var parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+        var answer = parts.map(function(p) { return p.text || ''; }).join('').trim();
+        document.getElementById('liveStatusText').textContent = '⚡ 검색 완료! 편하게 대화를 이어가세요.';
+        return answer || '검색 결과를 찾지 못했습니다.';
+      } catch (err) {
+        document.getElementById('liveStatusText').textContent = '⚡ 초고속 연결 완료! 지금 바로 편하게 말씀하세요.';
+        return '검색 중 일시적 오류가 발생했습니다: ' + err.message;
+      }
+    }
+
     function startMicStreaming() {
       micSource = captureCtx.createMediaStreamSource(mediaStream);
-      // ★ 버퍼 크기 절반 축소 (4096 -> 2048)로 전송 지연 최소화
       processorNode = captureCtx.createScriptProcessor(2048, 1, 1);
 
       processorNode.onaudioprocess = function(e) {
@@ -532,7 +549,7 @@
       processorNode.connect(captureCtx.destination);
     }
 
-    function handleServerMessage(msg) {
+    async function handleServerMessage(msg) {
       if (msg.setupComplete) {
         isLiveConnected = true;
         isMuted = false;
@@ -542,9 +559,16 @@
       }
 
       if (msg.toolCall && msg.toolCall.functionCalls) {
-        var responses = msg.toolCall.functionCalls.map(function(fc) {
+        var responses = [];
+        for (var i = 0; i < msg.toolCall.functionCalls.length; i++) {
+          var fc = msg.toolCall.functionCalls[i];
           var resObj = { result: '완료되었습니다.' };
-          if (fc.name === 'create_academy_task') {
+
+          if (fc.name === 'search_web') {
+            var q = (fc.args && fc.args.query) || '';
+            var searchResult = await runGoogleSearch(q);
+            resObj = { result: searchResult };
+          } else if (fc.name === 'create_academy_task') {
             var a = fc.args || {};
             pendingTasks.unshift({
               id: 'task_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
@@ -559,10 +583,12 @@
             approveAllTasks();
             resObj = { result: '대기 중인 모든 작업을 승인 완료했습니다.' };
           }
-          return { id: fc.id, name: fc.name, response: resObj };
-        });
+          responses.push({ id: fc.id, name: fc.name, response: resObj });
+        }
 
-        ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
+        }
         return;
       }
 
@@ -696,7 +722,9 @@
 
       currentUserBubble = null;
       currentAiBubble = null;
-      setLiveUI('OFF', '[실시간 음성 대화 시작] 버튼을 눌러 런비스와 통화를 시작하세요.');
+      if (userEndedSession) {
+        setLiveUI('OFF', '[실시간 음성 대화 시작] 버튼을 눌러 런비스와 통화를 시작하세요.');
+      }
     }
 
     function toggleMute() {
@@ -873,12 +901,8 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      try { isSearchEnabled = localStorage.getItem('runvis_search_on') === '1'; } catch (e) {}
-      updateSearchBtnUI();
-
       document.getElementById('liveToggleBtn').addEventListener('click', toggleLiveSession);
       document.getElementById('btnMuteMic').addEventListener('click', toggleMute);
-      document.getElementById('btnToggleSearch').addEventListener('click', toggleSearchMode);
       document.getElementById('btnOpenSettings').addEventListener('click', openSettingsModal);
       document.getElementById('btnCloseSettingsX').addEventListener('click', closeSettingsModal);
       document.getElementById('btnCloseSettings').addEventListener('click', closeSettingsModal);
