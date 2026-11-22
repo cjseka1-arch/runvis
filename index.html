@@ -33,7 +33,7 @@
       <div class="flex items-center gap-2.5">
         <span class="text-lg sm:text-xl font-black tracking-wide text-[#E50914]">RUN-VIS</span>
         <span class="px-1.5 py-0.5 rounded bg-[#E50914]/20 border border-[#E50914]/50 text-[10px] font-black text-[#ff6b72]">LIVE</span>
-        <span class="text-xs text-[#B3B3B3] hidden sm:inline">초경량 음성 모드 · 독립 기억 연동</span>
+        <span class="text-xs text-[#B3B3B3] hidden sm:inline">티키타카 최적화 · 독립 기억 연동</span>
       </div>
 
       <div class="flex items-center gap-2">
@@ -57,9 +57,9 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live · 초경량 음성 직통</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live · 에코 차단 + 고속 직통</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
-            받아쓰기 OFF (최고속)
+            중복응답 방지 ON
           </span>
           <span id="memoryBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#333333] text-[#B3B3B3] font-bold">
             기억 스캔 중...
@@ -85,7 +85,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">채팅 받아쓰기 생략 · 음성 최우선 반응 · 독립 기억 연동</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">에코 차단 · 4배 가벼운 오디오 전송 · 독립 기억 연동</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -113,17 +113,17 @@
         <div id="volumeBarWrap" class="hidden space-y-2">
           <div class="relative w-full h-2 bg-[#222222] rounded-full overflow-hidden">
             <div id="volumeBar" class="h-full bg-[#4ade80] transition-all duration-75" style="width: 0%;"></div>
-            <div id="gateMarker" class="absolute top-0 bottom-0 w-0.5 bg-[#E50914] z-10" style="left: 28%;"></div>
+            <div id="gateMarker" class="absolute top-0 bottom-0 w-0.5 bg-[#E50914] z-10" style="left: 0%;"></div>
           </div>
 
           <div class="flex items-center justify-between gap-3 text-[11px]">
-            <span class="text-[#999999] shrink-0">잡음 차단 <strong id="gateValueLabel" class="text-white">14</strong></span>
+            <span class="text-[#999999] shrink-0">잡음 차단 <strong id="gateValueLabel" class="text-white">0</strong></span>
             <input
               id="noiseGateSlider"
               type="range"
               min="0"
               max="40"
-              value="14"
+              value="0"
               class="flex-1 accent-[#E50914] h-1.5 cursor-pointer"
             />
             <span id="gateStatusBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-[#222222] text-[#888888] shrink-0">대기</span>
@@ -146,7 +146,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              초경량 음성 모드입니다. 음성 반응 속도를 최우선으로 하기 위해 실시간 받아쓰기를 껐습니다. 편하게 말씀해 보세요!
+              오디오 전송 부하를 1/4로 줄이고, 말하는 중 에코를 차단해 중복 응답이 안 생기도록 고쳤습니다. 바로 테스트해 보세요!
             </div>
           </div>
         </div>
@@ -284,7 +284,7 @@
     var lastUserVoiceTime = 0;
     var bargeInStreak = 0;
     var serverTurnDone = true;
-    var noiseGateLevel = 14;
+    var noiseGateLevel = 0;
     var gateOpenUntil = 0;
     var lastUiUpdate = 0;
     var suppressOldAudioUntil = 0;
@@ -418,10 +418,10 @@
 
     function updateNoiseGateUI(val) {
       noiseGateLevel = Number(val);
-      if (isNaN(noiseGateLevel)) noiseGateLevel = 14;
+      if (isNaN(noiseGateLevel)) noiseGateLevel = 0;
       document.getElementById('gateValueLabel').textContent = noiseGateLevel;
       document.getElementById('gateMarker').style.left = Math.min(98, noiseGateLevel * 2) + '%';
-      try { localStorage.setItem('runvis_noise_gate_v7', String(noiseGateLevel)); } catch (e) {}
+      try { localStorage.setItem('runvis_noise_gate_v8', String(noiseGateLevel)); } catch (e) {}
     }
 
     function showToast(msg) {
@@ -466,7 +466,7 @@
         badge.className = 'px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '채팅 받아쓰기 생략 · 음성 최우선 반응 · 독립 기억 연동';
+        sub.textContent = '에코 차단 · 4배 가벼운 오디오 전송 · 독립 기억 연동';
         swBadge.textContent = 'OFF';
         swBadge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
@@ -491,7 +491,7 @@
       btn.classList.add('live-active');
       iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
       title.textContent = '통화 종료하기 (LIVE 연결됨)';
-      sub.textContent = '초경량 음성 모드 작동 중 (말하면 바로 반응합니다)';
+      sub.textContent = '에코 차단 작동 중 (말이 끝나면 바로 대답합니다)';
       swBadge.textContent = 'LIVE';
       swBadge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
       muteBtn.classList.remove('hidden');
@@ -510,15 +510,15 @@
         label.textContent = '생각중';
         label.className = 'text-yellow-300 font-bold';
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#262212] border border-yellow-500/60 text-xs font-bold';
-        badge.textContent = '⚡ 즉시처리중';
+        badge.textContent = '⚡ 응답중';
         badge.className = 'px-2.5 py-1 rounded-full bg-[#262212] border border-yellow-500/60 text-xs font-bold text-yellow-300';
-        statusEl.textContent = customStatus || '즉시 응답 생성 중...';
+        statusEl.textContent = customStatus || '응답 생성 중...';
 
         thinkingTimeout = setTimeout(function() {
           if (isLiveConnected && aiPhase === 'THINKING') {
             setAiPhase('LISTENING');
           }
-        }, 1000);
+        }, 2500);
       } else if (phase === 'SEARCHING') {
         dot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-pulse';
         label.textContent = '검색중';
@@ -534,7 +534,7 @@
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#13261a] border border-[#4ade80]/60 text-xs font-bold';
         badge.textContent = '🔊 말하는중';
         badge.className = 'px-2.5 py-1 rounded-full bg-[#13261a] border border-[#4ade80]/60 text-xs font-bold text-[#4ade80]';
-        statusEl.textContent = customStatus || '런비스가 대답하고 있습니다. (말을 걸면 바로 전환됩니다)';
+        statusEl.textContent = customStatus || '런비스가 대답하고 있습니다...';
       }
     }
 
@@ -634,7 +634,6 @@
         baseInstruction += '\n\n[독립 기억 시트에서 불러온 기억 및 규칙 - 반드시 따르세요]\n' + loadedMemoryBlock;
       }
 
-      // 초경량 음성 모드: inputAudioTranscription / outputAudioTranscription 제거
       var setupMsg = {
         setup: {
           model: model,
@@ -652,10 +651,10 @@
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
-              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+              startOfSpeechSensitivity: 'START_SENSITIVITY_MEDIUM',
               endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
-              prefixPaddingMs: 10,
-              silenceDurationMs: 40
+              prefixPaddingMs: 100,
+              silenceDurationMs: 300
             }
           },
           systemInstruction: {
@@ -760,7 +759,8 @@
     function startMicStreaming() {
       if (!audioCtx || !mediaStream) return;
       micSource = audioCtx.createMediaStreamSource(mediaStream);
-      processorNode = audioCtx.createScriptProcessor(1024, 1, 1);
+      // 4096 버퍼: 전송 횟수를 1/4로 줄여 네트워크 밀림 및 지연 방지
+      processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
 
       processorNode.onaudioprocess = function(e) {
         if (!isLiveConnected || !ws || ws.readyState !== WebSocket.OPEN || isMuted || !audioCtx) return;
@@ -773,17 +773,17 @@
         var vol = Math.min(100, Math.round(rms * 500));
 
         var now = Date.now();
-        var activeThreshold = Math.max(3, noiseGateLevel);
+        var activeThreshold = Math.max(4, noiseGateLevel);
         var isVoiceDetected = (vol >= activeThreshold);
 
         if (noiseGateLevel === 0) {
-          gateOpenUntil = now + 300;
+          gateOpenUntil = now + 400;
         } else if (vol >= noiseGateLevel) {
-          gateOpenUntil = now + 150;
+          gateOpenUntil = now + 250;
         }
         var isGateOpen = (noiseGateLevel === 0) || (now <= gateOpenUntil);
 
-        if (now - lastUiUpdate >= 70) {
+        if (now - lastUiUpdate >= 80) {
           lastUiUpdate = now;
           var volBar = document.getElementById('volumeBar');
           var gateBadge = document.getElementById('gateStatusBadge');
@@ -792,7 +792,10 @@
             volBar.className = isVoiceDetected ? 'h-full bg-[#4ade80] transition-all duration-75' : 'h-full bg-[#555555] transition-all duration-75';
           }
           if (gateBadge) {
-            if (noiseGateLevel === 0) {
+            if (aiPhase === 'SPEAKING' || activeSources.length > 0) {
+              gateBadge.textContent = '에코 차단';
+              gateBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-[#262212] text-yellow-300 font-bold shrink-0';
+            } else if (noiseGateLevel === 0) {
               gateBadge.textContent = '음성 직통';
               gateBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-[#13261a] text-[#4ade80] font-bold shrink-0';
             } else if (isGateOpen) {
@@ -805,34 +808,39 @@
           }
         }
 
-        if (aiPhase === 'SPEAKING' || aiPhase === 'SEARCHING' || activeSources.length > 0) {
-          var bargeThreshold = Math.min(70, Math.max(noiseGateLevel * 1.8, 16));
+        // 런비스가 말하는 중에는 에코 유입(중복 대답)을 막기 위해 마이크 전송 중단
+        // 단, 원장님이 큰 목소리로 끼어들면 즉시 중단하고 다시 듣기 시작
+        if (aiPhase === 'SPEAKING' || activeSources.length > 0) {
+          var bargeThreshold = Math.min(75, Math.max(noiseGateLevel * 2.0, 32));
           if (vol >= bargeThreshold) {
             bargeInStreak++;
-            if (bargeInStreak >= 1) {
+            if (bargeInStreak >= 2) {
               stopAllPlayback();
               cancelOngoingSearch();
-              suppressOldAudioUntil = now + 180;
+              suppressOldAudioUntil = now + 200;
               bargeInStreak = 0;
               userWasSpeaking = true;
               lastUserVoiceTime = now;
-              setAiPhase('LISTENING', '🎤 최신 말씀을 최우선으로 듣고 있습니다...');
+              setAiPhase('LISTENING', '🎤 원장님 말씀을 듣고 있습니다...');
+            } else {
+              return;
             }
           } else {
             bargeInStreak = 0;
+            return;
           }
         } else {
           if (isVoiceDetected) {
             userWasSpeaking = true;
             lastUserVoiceTime = now;
             if (aiPhase !== 'LISTENING') setAiPhase('LISTENING');
-          } else if (userWasSpeaking && (now - lastUserVoiceTime > 80)) {
+          } else if (userWasSpeaking && (now - lastUserVoiceTime > 320)) {
             userWasSpeaking = false;
             if (aiPhase === 'LISTENING') setAiPhase('THINKING');
           }
         }
 
-        if (ws.bufferedAmount > 8192) return;
+        if (ws.bufferedAmount > 16384) return;
 
         var pcm16;
         if (isGateOpen) {
@@ -866,7 +874,7 @@
         bargeInStreak = 0;
         serverTurnDone = true;
         suppressOldAudioUntil = 0;
-        setAiPhase('LISTENING', '🎤 초경량 음성 모드 연결 완료! 바로 말씀해 주세요.');
+        setAiPhase('LISTENING', '🎤 연결 완료! 바로 말씀해 주세요.');
         startMicStreaming();
         return;
       }
@@ -1203,11 +1211,11 @@
     document.addEventListener('DOMContentLoaded', function() {
       fetchMemoryContext();
 
-      var savedGate = 14;
+      var savedGate = 0;
       try {
-        var rawGate = localStorage.getItem('runvis_noise_gate_v7');
+        var rawGate = localStorage.getItem('runvis_noise_gate_v8');
         if (rawGate !== null && rawGate !== '') savedGate = Number(rawGate);
-        if (isNaN(savedGate)) savedGate = 14;
+        if (isNaN(savedGate)) savedGate = 0;
       } catch (e) {}
       var slider = document.getElementById('noiseGateSlider');
       slider.value = savedGate;
