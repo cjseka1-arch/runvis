@@ -33,10 +33,15 @@
       <div class="flex items-center gap-2.5">
         <span class="text-lg sm:text-xl font-black tracking-wide text-[#E50914]">RUN-VIS</span>
         <span class="px-1.5 py-0.5 rounded bg-[#E50914]/20 border border-[#E50914]/50 text-[10px] font-black text-[#ff6b72]">LIVE</span>
-        <span class="text-xs text-[#B3B3B3] hidden sm:inline">실시간 AI 음성 비서</span>
+        <span class="text-xs text-[#B3B3B3] hidden sm:inline">초고속 실시간 AI 비서</span>
       </div>
 
       <div class="flex items-center gap-2">
+        <button
+          type="button"
+          id="btnToggleSearch"
+          class="px-2.5 py-1.5 rounded bg-[#181818] border border-[#333333] text-[11px] font-bold text-[#999999] hover:text-white cursor-pointer"
+        >검색 OFF</button>
         <div id="statePill" class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181818] border border-[#333333] text-xs font-bold text-[#999999]">
           <span id="stateDot" class="w-2 h-2 rounded-full bg-[#666666]"></span>
           <span id="stateLabel">대기중</span>
@@ -57,7 +62,7 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 실시간 양방향 통화</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 초고속 티키타카 모드</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
             준비됨
           </span>
@@ -80,7 +85,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">전화 통화처럼 자연스럽게 대화하고 언제든 말을 끊을 수 있습니다.</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">0.3초 초고속 반응 · 언제든 말을 끊고 대화할 수 있습니다.</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -124,7 +129,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요, 원장님! <strong>[실시간 음성 대화 시작]</strong>을 누르시면 제미나이 Live 엔진으로 사람처럼 자연스럽게 대화할 수 있습니다.
+              안녕하세요, 원장님! <strong>초고속 반응 튜닝</strong>과 <strong>젊은 여성 목소리(Leda)</strong>가 적용되었습니다. 바로 통화를 시작해 보세요!
             </div>
           </div>
         </div>
@@ -199,10 +204,12 @@
       <div class="space-y-1.5">
         <label class="block text-xs font-bold text-[#B3B3B3]">AI 목소리 선택</label>
         <select id="modalVoiceSelect" class="w-full bg-[#141414] border border-[#333333] rounded-md px-3 py-2 text-xs text-white outline-none">
-          <option value="Kore">Kore (차분하고 또렷한 여성 비서)</option>
-          <option value="Aoede">Aoede (밝고 친근한 여성 비서)</option>
-          <option value="Puck">Puck (활기찬 남성 비서)</option>
-          <option value="Charon">Charon (중후한 남성 비서)</option>
+          <option value="Leda">Leda (젊고 생기 있는 여성 비서 · 추천)</option>
+          <option value="Zephyr">Zephyr (밝고 상쾌한 젊은 여성)</option>
+          <option value="Aoede">Aoede (친근하고 부드러운 여성)</option>
+          <option value="Kore">Kore (차분하고 또렷한 여성)</option>
+          <option value="Puck">Puck (활기찬 남성)</option>
+          <option value="Charon">Charon (중후한 남성)</option>
         </select>
       </div>
 
@@ -227,11 +234,12 @@
 
   <script>
     var DEFAULT_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
-    var DEFAULT_VOICE = 'Kore';
+    var DEFAULT_VOICE = 'Leda';
 
     var ws = null;
     var isLiveConnected = false;
     var isMuted = false;
+    var isSearchEnabled = false;
 
     // 오디오 입출력 변수
     var captureCtx = null;
@@ -267,6 +275,28 @@
       box._t = setTimeout(function() { box.classList.add('opacity-0'); }, 2800);
     }
 
+    function updateSearchBtnUI() {
+      var btn = document.getElementById('btnToggleSearch');
+      if (isSearchEnabled) {
+        btn.textContent = '검색 ON';
+        btn.className = 'px-2.5 py-1.5 rounded bg-[#13261a] border border-[#4ade80]/60 text-[11px] font-bold text-[#4ade80] cursor-pointer';
+      } else {
+        btn.textContent = '검색 OFF';
+        btn.className = 'px-2.5 py-1.5 rounded bg-[#181818] border border-[#333333] text-[11px] font-bold text-[#999999] hover:text-white cursor-pointer';
+      }
+    }
+
+    function toggleSearchMode() {
+      isSearchEnabled = !isSearchEnabled;
+      try { localStorage.setItem('runvis_search_on', isSearchEnabled ? '1' : '0'); } catch (e) {}
+      updateSearchBtnUI();
+      if (isLiveConnected) {
+        showToast(isSearchEnabled ? '검색 ON (통화를 껐다 켜면 적용됩니다)' : '검색 OFF · 초고속 모드 (통화를 껐다 켜면 적용됩니다)');
+      } else {
+        showToast(isSearchEnabled ? '구글 실시간 검색 모드가 켜졌습니다.' : '초고속 대화 모드(검색 OFF)로 전환되었습니다.');
+      }
+    }
+
     function setLiveUI(state, statusText) {
       var dot = document.getElementById('stateDot');
       var label = document.getElementById('stateLabel');
@@ -290,7 +320,7 @@
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181818] border border-[#333333] text-xs font-bold';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '전화 통화처럼 자연스럽게 대화하고 언제든 말을 끊을 수 있습니다.';
+        sub.textContent = '0.3초 초고속 반응 · 언제든 말을 끊고 대화할 수 있습니다.';
         badge.textContent = 'OFF';
         badge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
@@ -318,7 +348,7 @@
         badge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
         muteBtn.classList.remove('hidden');
         volWrap.classList.remove('hidden');
-        diag.textContent = '🟢 실시간 양방향 연결됨';
+        diag.textContent = isSearchEnabled ? '🟢 실시간 연결 (검색 ON)' : '⚡ 초고속 티키타카 연결됨';
         diag.className = 'text-xs font-bold text-[#4ade80]';
       }
     }
@@ -327,11 +357,8 @@
     // 실시간 Live 연결 시작 / 종료
     // =========================================================
     function toggleLiveSession() {
-      if (isLiveConnected || ws) {
-        stopLiveSession();
-      } else {
-        startLiveSession();
-      }
+      if (isLiveConnected || ws) stopLiveSession();
+      else startLiveSession();
     }
 
     async function startLiveSession() {
@@ -345,7 +372,6 @@
       setLiveUI('CONNECTING', '마이크 권한과 제미나이 Live 서버를 연결하고 있습니다...');
 
       try {
-        // 1. 오디오 컨텍스트 초기화 (모바일 브라우저 정책상 클릭 직후 생성 필수)
         var AudioCtx = window.AudioContext || window.webkitAudioContext;
         captureCtx = new AudioCtx();
         playbackCtx = new AudioCtx({ sampleRate: 24000 });
@@ -353,7 +379,6 @@
         if (playbackCtx.state === 'suspended') await playbackCtx.resume();
         nextPlayTime = 0;
 
-        // 2. 마이크 스트림 획득 (에코 캔슬링 + 노이즈 억제 활성화)
         mediaStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
@@ -363,7 +388,6 @@
           }
         });
 
-        // 3. Gemini Live WebSocket 연결
         var wsUrl = ['wss:', '', 'generativelanguage.googleapis.com', 'ws', 'google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=' + encodeURIComponent(apiKey)].join('/');
         ws = new WebSocket(wsUrl);
 
@@ -404,6 +428,37 @@
       var model = getLiveModel();
       if (model.indexOf('models/') !== 0) model = 'models/' + model;
 
+      var toolsList = [
+        {
+          functionDeclarations: [
+            {
+              name: 'create_academy_task',
+              description: '학생의 결석, 보강, 시간변경, 과제체크, 학부모 리포트 업무를 원장님 승인 대기 목록에 등록합니다.',
+              parameters: {
+                type: 'OBJECT',
+                properties: {
+                  student: { type: 'STRING', description: '학생 이름' },
+                  category: { type: 'STRING', description: '결석, 보강, 시간변경, 과제체크, 학부모 리포트 중 하나' },
+                  summary: { type: 'STRING', description: '업무 상세 요약 또는 학부모 문자 초안' },
+                  isReport: { type: 'BOOLEAN', description: '학부모 리포트/문자 초안이면 true' }
+                },
+                required: ['student', 'category', 'summary']
+              }
+            },
+            {
+              name: 'approve_all_tasks',
+              description: '현재 승인 대기 중인 모든 학원 업무를 일괄 승인 및 처리합니다.',
+              parameters: { type: 'OBJECT', properties: {} }
+            }
+          ]
+        }
+      ];
+
+      // 검색 ON일 때만 구글 검색 도구 활성화 (OFF일 때 반응 속도 극대화)
+      if (isSearchEnabled) {
+        toolsList.unshift({ googleSearch: {} });
+      }
+
       var setupMsg = {
         setup: {
           model: model,
@@ -417,43 +472,27 @@
               }
             }
           },
+          // ★ 초고속 반응 튜닝: 말 끝 감지 민감도 최상 + 대기 시간 0.3초 단축
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              disabled: false,
+              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+              endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
+              prefixPaddingMs: 100,
+              silenceDurationMs: 300
+            }
+          },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
           systemInstruction: {
             parts: [{
               text: '당신은 런수학학원 원장님의 전담 AI 비서 런비스입니다. ' +
-                    '기계적인 존댓말을 피하고, 실제 친근하고 센스 있는 사람 비서처럼 자연스러운 한국어 구어체로 짧고 핵심만 대답하세요. ' +
-                    '최신 정보(수능 등급컷, 날씨, 뉴스 등)가 필요하면 구글 검색 도구를 사용하세요. ' +
-                    '원장님이 학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 작성 등을 지시하면 반드시 create_academy_task 함수를 호출하고, ' +
+                    '기계적인 존댓말을 절대 쓰지 말고, 친근하고 센스 있는 젊은 비서처럼 자연스러운 한국어 구어체로 1~2문장 이내로 아주 짧고 경쾌하게 티키타카 하듯 대답하세요. ' +
+                    '원장님이 학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 등을 지시하면 반드시 create_academy_task 함수를 호출하고, ' +
                     '승인하거나 문자 보내라고 하면 approve_all_tasks 함수를 호출하세요.'
             }]
           },
-          tools: [
-            { googleSearch: {} },
-            {
-              functionDeclarations: [
-                {
-                  name: 'create_academy_task',
-                  description: '학생의 결석, 보강, 시간변경, 과제체크, 학부모 리포트 업무를 원장님 승인 대기 목록에 등록합니다.',
-                  parameters: {
-                    type: 'OBJECT',
-                    properties: {
-                      student: { type: 'STRING', description: '학생 이름' },
-                      category: { type: 'STRING', description: '결석, 보강, 시간변경, 과제체크, 학부모 리포트 중 하나' },
-                      summary: { type: 'STRING', description: '업무 상세 요약 또는 학부모 문자 초안' },
-                      isReport: { type: 'BOOLEAN', description: '학부모 리포트/문자 초안이면 true' }
-                    },
-                    required: ['student', 'category', 'summary']
-                  }
-                },
-                {
-                  name: 'approve_all_tasks',
-                  description: '현재 승인 대기 중인 모든 학원 업무를 일괄 승인 및 처리합니다.',
-                  parameters: { type: 'OBJECT', properties: {} }
-                }
-              ]
-            }
-          ]
+          tools: toolsList
         }
       };
 
@@ -462,21 +501,20 @@
 
     function startMicStreaming() {
       micSource = captureCtx.createMediaStreamSource(mediaStream);
-      processorNode = captureCtx.createScriptProcessor(4096, 1, 1);
+      // ★ 버퍼 크기 절반 축소 (4096 -> 2048)로 전송 지연 최소화
+      processorNode = captureCtx.createScriptProcessor(2048, 1, 1);
 
       processorNode.onaudioprocess = function(e) {
         if (!isLiveConnected || !ws || ws.readyState !== WebSocket.OPEN || isMuted) return;
 
         var inputData = e.inputBuffer.getChannelData(0);
 
-        // 음량 바 표시
         var sum = 0;
         for (var i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
         var vol = Math.min(100, Math.round((sum / inputData.length) * 450));
         var volBar = document.getElementById('volumeBar');
         if (volBar) volBar.style.width = vol + '%';
 
-        // 16kHz PCM 16-bit 변환 후 전송
         var pcm16 = downsampleTo16k(inputData, captureCtx.sampleRate);
         var b64 = arrayBufferToBase64(pcm16.buffer);
 
@@ -495,16 +533,14 @@
     }
 
     function handleServerMessage(msg) {
-      // 1. 초기 설정 완료 -> 마이크 송출 시작!
       if (msg.setupComplete) {
         isLiveConnected = true;
         isMuted = false;
-        setLiveUI('LIVE', '🎤 연결 완료! 지금 바로 편하게 말씀하세요.');
+        setLiveUI('LIVE', '⚡ 초고속 연결 완료! 지금 바로 편하게 말씀하세요.');
         startMicStreaming();
         return;
       }
 
-      // 2. 함수 호출(학원 업무 카드 생성 / 전체 승인)
       if (msg.toolCall && msg.toolCall.functionCalls) {
         var responses = msg.toolCall.functionCalls.map(function(fc) {
           var resObj = { result: '완료되었습니다.' };
@@ -530,29 +566,24 @@
         return;
       }
 
-      // 3. 서버 콘텐츠 (음성 출력, 자막, 말 끊기)
       if (msg.serverContent) {
         var sc = msg.serverContent;
 
-        // 원장님이 말을 끊었을 때 -> 재생 중인 AI 음성 즉시 정지!
         if (sc.interrupted) {
           stopAllPlayback();
           currentAiBubble = null;
         }
 
-        // 원장님 말 자막
         if (sc.inputTranscription && sc.inputTranscription.text) {
           appendOrUpdateStreamBubble('user', sc.inputTranscription.text);
           currentAiBubble = null;
         }
 
-        // AI 말 자막
         if (sc.outputTranscription && sc.outputTranscription.text) {
           appendOrUpdateStreamBubble('assistant', sc.outputTranscription.text);
           currentUserBubble = null;
         }
 
-        // AI 음성 오디오 재생
         if (sc.modelTurn && sc.modelTurn.parts) {
           sc.modelTurn.parts.forEach(function(part) {
             if (part.inlineData && part.inlineData.data) {
@@ -569,7 +600,7 @@
     }
 
     // =========================================================
-    // 오디오 인코딩/디코딩 & 끊김 없는 재생 엔진
+    // 오디오 인코딩/디코딩 & 초저지연 재생 엔진
     // =========================================================
     function downsampleTo16k(buffer, sampleRate) {
       if (sampleRate === 16000) {
@@ -618,7 +649,7 @@
       source.connect(playbackCtx.destination);
 
       var now = playbackCtx.currentTime;
-      if (nextPlayTime < now) nextPlayTime = now + 0.04;
+      if (nextPlayTime < now) nextPlayTime = now + 0.02;
       source.start(nextPlayTime);
       nextPlayTime += audioBuffer.duration;
 
@@ -648,9 +679,7 @@
     }
 
     function stopLiveSession() {
-      if (ws) {
-        try { ws.close(); } catch (e) {}
-      }
+      if (ws) { try { ws.close(); } catch (e) {} }
       cleanupLiveSession();
     }
 
@@ -685,7 +714,6 @@
       }
     }
 
-    // 텍스트 입력도 Live 세션으로 바로 전송
     function handleTextSubmit(e) {
       if (e) e.preventDefault();
       var input = document.getElementById('textInput');
@@ -837,7 +865,7 @@
         if (m) localStorage.setItem('runvis_live_model', m);
       } catch (e) {}
       closeSettingsModal();
-      showToast('설정이 저장되었습니다.');
+      showToast('설정이 저장되었습니다. (통화 재시작 시 적용)');
     }
 
     function escapeHtml(str) {
@@ -845,8 +873,12 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+      try { isSearchEnabled = localStorage.getItem('runvis_search_on') === '1'; } catch (e) {}
+      updateSearchBtnUI();
+
       document.getElementById('liveToggleBtn').addEventListener('click', toggleLiveSession);
       document.getElementById('btnMuteMic').addEventListener('click', toggleMute);
+      document.getElementById('btnToggleSearch').addEventListener('click', toggleSearchMode);
       document.getElementById('btnOpenSettings').addEventListener('click', openSettingsModal);
       document.getElementById('btnCloseSettingsX').addEventListener('click', closeSettingsModal);
       document.getElementById('btnCloseSettings').addEventListener('click', closeSettingsModal);
