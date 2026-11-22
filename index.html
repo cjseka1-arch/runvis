@@ -651,7 +651,7 @@
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
-              startOfSpeechSensitivity: 'START_SENSITIVITY_MEDIUM',
+              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
               prefixPaddingMs: 100,
               silenceDurationMs: 300
@@ -759,7 +759,6 @@
     function startMicStreaming() {
       if (!audioCtx || !mediaStream) return;
       micSource = audioCtx.createMediaStreamSource(mediaStream);
-      // 4096 버퍼: 전송 횟수를 1/4로 줄여 네트워크 밀림 및 지연 방지
       processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
 
       processorNode.onaudioprocess = function(e) {
@@ -808,8 +807,6 @@
           }
         }
 
-        // 런비스가 말하는 중에는 에코 유입(중복 대답)을 막기 위해 마이크 전송 중단
-        // 단, 원장님이 큰 목소리로 끼어들면 즉시 중단하고 다시 듣기 시작
         if (aiPhase === 'SPEAKING' || activeSources.length > 0) {
           var bargeThreshold = Math.min(75, Math.max(noiseGateLevel * 2.0, 32));
           if (vol >= bargeThreshold) {
