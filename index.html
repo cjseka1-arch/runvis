@@ -132,7 +132,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요, 원장님! 이제 <strong>제미나이가 원장님 육성을 직접 듣습니다.</strong> 학생 이름이나 복잡한 지시도 편하게 말씀해 주세요!
+              안녕하세요, 원장님! <strong>[런비스 음성 비서 켜기]</strong> 후 <strong>"런비스"</strong>라고 부르시거나, 아래에 글자로 먼저 테스트해 보세요.
             </div>
           </div>
         </div>
@@ -238,18 +238,17 @@
       if (st) st.textContent = '스크립트 오류(' + line + '행): ' + msg;
     };
 
-    var EMBEDDED_API_KEY = '';
     var DEFAULT_WAKE_REPLY = '네, 잘생긴 원장님~ 말씀하세요!';
-    var DEFAULT_WAKE_ALIASES = '런비스, 런 비스, 런미스, 럼비스, 연비스, 원피스, 원 비스, 던비스, 덤비스';
+    var CORE_WAKE_ALIASES = ['런비스', '런 비스', '런미스', '럼비스', '연비스', '원피스', '원 비스', '던비스', '덤비스', '런비'];
+    var DEFAULT_WAKE_ALIASES = CORE_WAKE_ALIASES.join(', ');
     var GEMINI_MODEL = 'gemini-2.5-flash';
 
     var isAssistantOn = false;
-    var assistantMode = 'OFF'; // OFF, STANDBY, RECORDING, THINKING, SPEAKING
+    var assistantMode = 'OFF';
     var recognition = null;
     var restartTimer = null;
     var isSpeaking = false;
 
-    // ★ 제미나이 직접 음성 녹음 & 무음 감지 변수
     var mediaRecorder = null;
     var audioStream = null;
     var audioChunks = [];
@@ -264,9 +263,9 @@
 
     function getApiKey() {
       try {
-        return (localStorage.getItem('runvis_api_key') || EMBEDDED_API_KEY).trim();
+        return (localStorage.getItem('runvis_api_key') || '').replace(/\s+/g, '').trim();
       } catch (e) {
-        return EMBEDDED_API_KEY;
+        return '';
       }
     }
     function getWakeReply() {
@@ -277,11 +276,17 @@
       }
     }
     function getWakeAliases() {
-      var raw = DEFAULT_WAKE_ALIASES;
+      var list = CORE_WAKE_ALIASES.slice();
       try {
-        raw = localStorage.getItem('runvis_wake_aliases') || DEFAULT_WAKE_ALIASES;
+        var saved = localStorage.getItem('runvis_wake_aliases');
+        if (saved) {
+          saved.split(',').forEach(function(s) {
+            var clean = s.trim();
+            if (clean && list.indexOf(clean) === -1) list.push(clean);
+          });
+        }
       } catch (e) {}
-      return raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      return list;
     }
 
     function showToast(msg) {
@@ -389,11 +394,8 @@
     }
 
     function toggleVoiceAssistant() {
-      if (isAssistantOn) {
-        stopVoiceAssistant();
-      } else {
-        startVoiceAssistant();
-      }
+      if (isAssistantOn) stopVoiceAssistant();
+      else startVoiceAssistant();
     }
 
     function startVoiceAssistant() {
@@ -437,20 +439,15 @@
         return;
       }
       if (isRecordingAudio) {
-        // 녹음 중일 때 누르면 즉시 녹음 종료 후 전송
         stopAudioRecording(false);
         return;
       }
-      if (!isAssistantOn) {
-        isAssistantOn = true;
-      }
+      if (!isAssistantOn) isAssistantOn = true;
       stopWakeWordListener();
       startAudioRecording();
     }
 
-    // =========================================================
-    // 1단계: 호출어("런비스") 대기 리스너 (STANDBY 전용)
-    // =========================================================
+    // 1단계: 호출어("런비스") 즉시 감지 (interim + final 모두 감지)
     function stopWakeWordListener() {
       clearTimeout(restartTimer);
       if (recognition) {
@@ -488,30 +485,25 @@
 
         rec.onresult = function(event) {
           if (assistantMode !== 'STANDBY') return;
-          var finalStr = '';
+          var combined = '';
           for (var i = event.resultIndex; i < event.results.length; i++) {
-            if (event.results[i].isFinal) finalStr += event.results[i][0].transcript;
+            combined += event.results[i][0].transcript;
           }
-          if (!finalStr.trim()) return;
+          combined = combined.trim();
+          if (!combined) return;
 
-          var wake = matchWakePhrase(finalStr.trim());
-          if (!wake.matched) {
-            document.getElementById('liveStatusText').textContent = '호출어 대기중 (들린 말: "' + finalStr.trim() + '")';
-            return;
-          }
+          document.getElementById('liveStatusText').textContent = '들린 말: "' + combined + '"';
 
-          // 호출어 인식 성공 -> 브라우저 인식 끄고 대답 후 제미나이 직접 녹음 시작!
-          stopWakeWordListener();
-          appendChat('user', finalStr.trim());
-
-          if (!wake.remainder) {
+          // 말하는 도중에도 "런비스"가 들리면 즉시 반응!
+          var wake = matchWakePhrase(combined);
+          if (wake.matched) {
+            stopWakeWordListener();
+            appendChat('user', combined);
             var reply = getWakeReply();
             appendChat('assistant', reply);
             speakText(reply, function() {
               if (isAssistantOn) startAudioRecording();
             });
-          } else {
-            processTextWithGeminiAI(wake.remainder);
           }
         };
 
@@ -525,12 +517,12 @@
 
         rec.onend = function() {
           if (isAssistantOn && assistantMode === 'STANDBY' && !isSpeaking && !isRecordingAudio) {
-            startWakeWordListener(500);
+            startWakeWordListener(400);
           }
         };
 
         recognition = rec;
-        try { rec.start(); } catch (e) { startWakeWordListener(800); }
+        try { rec.start(); } catch (e) { startWakeWordListener(700); }
       }, delayMs);
     }
 
@@ -539,19 +531,14 @@
       var aliases = getWakeAliases();
       for (var i = 0; i < aliases.length; i++) {
         var cleanAlias = aliases[i].replace(/\s+/g, '').toLowerCase();
-        if (!cleanAlias) continue;
-        if (norm.indexOf(cleanAlias) !== -1) {
-          var rawIdx = text.toLowerCase().indexOf(aliases[i].toLowerCase());
-          var remainder = rawIdx !== -1 ? text.slice(rawIdx + aliases[i].length).trim() : '';
-          return { matched: true, remainder: remainder };
+        if (cleanAlias && norm.indexOf(cleanAlias) !== -1) {
+          return { matched: true };
         }
       }
-      return { matched: false, remainder: '' };
+      return { matched: false };
     }
 
-    // =========================================================
-    // 2단계: 제미나이 직접 음성 녹음 + 자동 무음 감지 (VAD)
-    // =========================================================
+    // 2단계: 제미나이 직접 음성 녹음 + 자동 무음 감지
     function startAudioRecording() {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showToast('이 브라우저는 오디오 녹음을 지원하지 않습니다.');
@@ -602,7 +589,6 @@
             var finalMime = (mediaRecorder.mimeType || mimeType || 'audio/webm').split(';')[0];
             var blob = new Blob(audioChunks, { type: finalMime });
             if (blob.size < 1500) {
-              // 너무 짧은 빈 녹음이면 대기 모드로 복귀
               setAssistantMode('STANDBY', '말씀이 들리지 않아 대기 모드로 전환했습니다.');
               startWakeWordListener(300);
               return;
@@ -633,9 +619,9 @@
         var speechStartTime = Date.now();
         var lastSoundTime = Date.now();
 
-        var VOLUME_THRESHOLD = 16;   // 말소리 감지 민감도
-        var SILENCE_MS = 1500;       // 말 끝난 후 1.5초 조용하면 자동 전송
-        var NO_SPEECH_TIMEOUT = 8000; // 8초간 아예 말이 없으면 대기 모드 복귀
+        var VOLUME_THRESHOLD = 16;
+        var SILENCE_MS = 1500;
+        var NO_SPEECH_TIMEOUT = 8000;
 
         function checkVolume() {
           if (!isRecordingAudio) return;
@@ -702,9 +688,7 @@
       if (volBar) volBar.style.width = '0%';
     }
 
-    // =========================================================
-    // 3단계: 제미나이 API 호출 (오디오 직접 전송 & 텍스트 전송)
-    // =========================================================
+    // 3단계: 제미나이 API 호출 + 상세 오류 진단
     function getSystemPrompt() {
       return '당신은 런수학학원 원장님의 전담 비서 런비스입니다. ' +
         '기계적인 존댓말("요청하신 작업이 완료되었습니다" 등)은 절대 쓰지 말고, 센스 있고 다정한 실제 사람 비서처럼 자연스러운 구어체로 짧게 1~3문장만 답하세요. ' +
@@ -747,7 +731,7 @@
     function sendToGemini(contents, originalTextIfTextMode) {
       var apiKey = getApiKey();
       if (!apiKey) {
-        handleAiError('API 키가 설정되지 않았습니다.');
+        handleAiError('API 키가 비어 있습니다. 우측 상단 [설정]에서 입력해 주세요.');
         return;
       }
 
@@ -768,9 +752,19 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payloadObj)
       })
-      .then(function(res) { return res.text(); })
-      .then(function(rawResponseText) {
-        var data = JSON.parse(rawResponseText);
+      .then(function(res) {
+        return res.text().then(function(txt) {
+          return { status: res.status, text: txt };
+        });
+      })
+      .then(function(resObj) {
+        var data;
+        try {
+          data = JSON.parse(resObj.text);
+        } catch (parseErr) {
+          throw new Error('HTTP ' + resObj.status + ' 응답 오류: ' + resObj.text.slice(0, 120));
+        }
+
         if (data.error) throw new Error(data.error.message || 'API 오류');
 
         var parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
@@ -821,7 +815,6 @@
               setAssistantMode('STANDBY', '호출어 대기중: "런비스"라고 불러주세요.');
               startWakeWordListener(300);
             } else {
-              // 대답이 끝나면 이어서 바로 다음 말씀을 듣기 위해 녹음 재시작!
               startAudioRecording();
             }
           });
@@ -979,7 +972,7 @@
           '<div class="bg-[#2c2c2c] border border-[#444444] rounded-lg rounded-tr-none px-3.5 py-2 text-xs sm:text-sm text-white max-w-[90%] leading-relaxed">' + escapeHtml(text) + '</div>';
       } else if (role === 'system') {
         wrap.className = 'flex justify-center';
-        wrap.innerHTML = '<div class="bg-[#2a1416] border border-[#E50914]/50 rounded px-3 py-1.5 text-[11px] text-[#ff8a90]">' + escapeHtml(text) + '</div>';
+        wrap.innerHTML = '<div class="bg-[#2a1416] border border-[#E50914]/50 rounded px-3 py-1.5 text-[11px] text-[#ff8a90] break-all">' + escapeHtml(text) + '</div>';
       } else {
         wrap.className = 'flex flex-col items-start space-y-1';
         wrap.innerHTML = '<span class="text-[11px] font-bold text-[#E50914]">RUN-VIS</span>' +
@@ -996,11 +989,7 @@
 
     function openSettingsModal() {
       document.getElementById('modalApiKeyInput').value = getApiKey();
-      try {
-        document.getElementById('modalWakeAliasesInput').value = localStorage.getItem('runvis_wake_aliases') || DEFAULT_WAKE_ALIASES;
-      } catch (e) {
-        document.getElementById('modalWakeAliasesInput').value = DEFAULT_WAKE_ALIASES;
-      }
+      document.getElementById('modalWakeAliasesInput').value = getWakeAliases().join(', ');
       document.getElementById('modalWakeReplyInput').value = getWakeReply();
       document.getElementById('settingsModal').classList.remove('hidden');
     }
@@ -1010,7 +999,7 @@
     }
 
     function saveSettings() {
-      var k = document.getElementById('modalApiKeyInput').value.trim();
+      var k = document.getElementById('modalApiKeyInput').value.replace(/\s+/g, '').trim();
       var a = document.getElementById('modalWakeAliasesInput').value.trim();
       var w = document.getElementById('modalWakeReplyInput').value.trim();
       try {
