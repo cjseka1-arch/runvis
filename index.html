@@ -240,7 +240,6 @@
 
     var DEFAULT_WAKE_REPLY = '네, 잘생긴 원장님~ 말씀하세요!';
     var CORE_WAKE_ALIASES = ['런비스', '런 비스', '런미스', '럼비스', '연비스', '원피스', '원 비스', '던비스', '덤비스', '런비'];
-    var DEFAULT_WAKE_ALIASES = CORE_WAKE_ALIASES.join(', ');
     var GEMINI_MODEL = 'gemini-2.5-flash';
 
     var isAssistantOn = false;
@@ -447,7 +446,7 @@
       startAudioRecording();
     }
 
-    // 1단계: 호출어("런비스") 즉시 감지 (interim + final 모두 감지)
+    // 1단계: 호출어("런비스") 즉시 감지
     function stopWakeWordListener() {
       clearTimeout(restartTimer);
       if (recognition) {
@@ -494,7 +493,6 @@
 
           document.getElementById('liveStatusText').textContent = '들린 말: "' + combined + '"';
 
-          // 말하는 도중에도 "런비스"가 들리면 즉시 반응!
           var wake = matchWakePhrase(combined);
           if (wake.matched) {
             stopWakeWordListener();
@@ -688,7 +686,7 @@
       if (volBar) volBar.style.width = '0%';
     }
 
-    // 3단계: 제미나이 API 호출 + 상세 오류 진단
+    // 3단계: 제미나이 API 호출 (복사 깨짐 방지 주소 조립 적용)
     function getSystemPrompt() {
       return '당신은 런수학학원 원장님의 전담 비서 런비스입니다. ' +
         '기계적인 존댓말("요청하신 작업이 완료되었습니다" 등)은 절대 쓰지 말고, 센스 있고 다정한 실제 사람 비서처럼 자연스러운 구어체로 짧게 1~3문장만 답하세요. ' +
@@ -746,7 +744,8 @@
         }
       };
 
-      var url = '[https://generativelanguage.googleapis.com/v1beta/models/](https://generativelanguage.googleapis.com/v1beta/models/)' + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey);
+      var url = ['https:', '', 'generativelanguage.googleapis.com', 'v1beta', 'models', GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey)].join('/');
+
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
