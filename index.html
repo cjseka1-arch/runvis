@@ -57,7 +57,7 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 잡음 차단 + 즉시 끼어들기</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 초고속 반응 + 소프트 잡음 감소</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
             준비됨
           </span>
@@ -82,7 +82,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">주변 잡음 차단 · 말하는 도중 바로 끼어들기 가능</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">즉각 반응 · 말하는 도중 바로 끼어들기 가능</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -98,7 +98,7 @@
         </button>
       </div>
 
-      <!-- 실시간 상태, 음량 바 & 잡음 차단 조절 -->
+      <!-- 실시간 상태, 음량 바 & 잡음 감소 조절 -->
       <div class="bg-[#141414] border border-[#333333] rounded-md px-3.5 py-2.5 space-y-2.5">
         <div class="flex items-center justify-between gap-2 text-xs">
           <div class="flex items-center gap-2 min-w-0">
@@ -108,24 +108,22 @@
         </div>
 
         <div id="volumeBarWrap" class="hidden space-y-2">
-          <!-- 음량 게이지 + 잡음 차단 기준선 -->
           <div class="relative w-full h-2 bg-[#222222] rounded-full overflow-hidden">
             <div id="volumeBar" class="h-full bg-[#4ade80] transition-all duration-75" style="width: 0%;"></div>
-            <div id="gateMarker" class="absolute top-0 bottom-0 w-0.5 bg-[#E50914] z-10" style="left: 20%;"></div>
+            <div id="gateMarker" class="absolute top-0 bottom-0 w-0.5 bg-[#E50914] z-10" style="left: 8%;"></div>
           </div>
 
-          <!-- 잡음 차단 슬라이더 -->
           <div class="flex items-center justify-between gap-3 text-[11px]">
-            <span class="text-[#999999] shrink-0">잡음 차단 강도 <strong id="gateValueLabel" class="text-white">20</strong></span>
+            <span class="text-[#999999] shrink-0">잡음 감도 <strong id="gateValueLabel" class="text-white">8</strong></span>
             <input
               id="noiseGateSlider"
               type="range"
-              min="5"
-              max="60"
-              value="20"
+              min="2"
+              max="35"
+              value="8"
               class="flex-1 accent-[#E50914] h-1.5 cursor-pointer"
             />
-            <span id="gateStatusBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-[#222222] text-[#888888] shrink-0">잡음 차단중</span>
+            <span id="gateStatusBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-[#222222] text-[#888888] shrink-0">대기</span>
           </div>
         </div>
       </div>
@@ -145,7 +143,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요, 원장님! <strong>주변 잡음 차단(노이즈 게이트)</strong>이 적용되었습니다. 통화 시작 후 음량 바의 빨간 선을 주변 소음보다 살짝 높게 맞춰 쓰시면 깔끔합니다!
+              안녕하세요, 원장님! 목소리가 끊기지 않게 <strong>소프트 잡음 감소</strong>로 고쳤습니다. 이제 "런비스 응답해 봐"라고 바로 불러보세요!
             </div>
           </div>
         </div>
@@ -258,6 +256,7 @@
     var isMuted = false;
     var userEndedSession = false;
     var reconnectTimer = null;
+    var thinkingTimeout = null;
 
     var captureCtx = null;
     var playbackCtx = null;
@@ -267,13 +266,12 @@
     var nextPlayTime = 0;
     var activeSources = [];
 
-    // ★ 상태 머신 & 잡음 차단 게이트 변수
     var aiPhase = 'OFF';
     var userWasSpeaking = false;
     var lastUserVoiceTime = 0;
     var bargeInStreak = 0;
     var serverTurnDone = true;
-    var noiseGateLevel = 20; // 5 ~ 60 (기본값 20 = rms 0.04)
+    var noiseGateLevel = 8; // 기본값 8 (낮고 부드럽게)
     var gateOpenUntil = 0;
 
     var currentUserBubble = null;
@@ -293,10 +291,10 @@
     }
 
     function updateNoiseGateUI(val) {
-      noiseGateLevel = Number(val) || 20;
+      noiseGateLevel = Number(val) || 8;
       document.getElementById('gateValueLabel').textContent = noiseGateLevel;
-      document.getElementById('gateMarker').style.left = Math.min(98, noiseGateLevel) + '%';
-      try { localStorage.setItem('runvis_noise_gate', String(noiseGateLevel)); } catch (e) {}
+      document.getElementById('gateMarker').style.left = Math.min(98, noiseGateLevel * 2) + '%';
+      try { localStorage.setItem('runvis_noise_gate_v2', String(noiseGateLevel)); } catch (e) {}
     }
 
     function showToast(msg) {
@@ -308,6 +306,7 @@
     }
 
     function setAiPhase(phase, customStatus) {
+      clearTimeout(thinkingTimeout);
       aiPhase = phase;
       var dot = document.getElementById('stateDot');
       var label = document.getElementById('stateLabel');
@@ -333,7 +332,7 @@
         badge.className = 'px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '주변 잡음 차단 · 말하는 도중 바로 끼어들기 가능';
+        sub.textContent = '즉각 반응 · 말하는 도중 바로 끼어들기 가능';
         swBadge.textContent = 'OFF';
         swBadge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
@@ -380,6 +379,13 @@
         badge.textContent = '🧠 생각중...';
         badge.className = 'px-2.5 py-1 rounded-full bg-[#262212] border border-yellow-500/60 text-xs font-bold text-yellow-300';
         statusEl.textContent = customStatus || '런비스가 답변을 생각하고 있습니다...';
+
+        // ★ 3초 이상 응답이 없으면 무한 '생각중'에 빠지지 않게 자동 복귀
+        thinkingTimeout = setTimeout(function() {
+          if (isLiveConnected && aiPhase === 'THINKING') {
+            setAiPhase('LISTENING');
+          }
+        }, 3000);
       } else if (phase === 'SEARCHING') {
         dot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-pulse';
         label.textContent = '검색중';
@@ -495,14 +501,14 @@
               }
             }
           },
-          // ★ 시작 민감도는 LOW(잡음 무시), 끝 감지는 HIGH(빠른 대답)
+          // ★ 시작/끝 모두 HIGH로 복원하여 즉각 반응
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
-              startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
+              startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
               prefixPaddingMs: 80,
-              silenceDurationMs: 250
+              silenceDurationMs: 220
             }
           },
           inputAudioTranscription: {},
@@ -590,7 +596,7 @@
 
         var inputData = e.inputBuffer.getChannelData(0);
 
-        // RMS 음량 계산 (0 ~ 100 스케일)
+        // RMS 음량 계산 (0 ~ 100)
         var sumSq = 0;
         for (var i = 0; i < inputData.length; i++) sumSq += inputData[i] * inputData[i];
         var rms = Math.sqrt(sumSq / inputData.length);
@@ -599,7 +605,7 @@
         var volBar = document.getElementById('volumeBar');
         var gateBadge = document.getElementById('gateStatusBadge');
         if (volBar) {
-          volBar.style.width = vol + '%';
+          volBar.style.width = Math.min(100, vol * 2) + '%';
           volBar.className = (vol >= noiseGateLevel) ? 'h-full bg-[#4ade80] transition-all duration-75' : 'h-full bg-[#555555] transition-all duration-75';
         }
 
@@ -607,26 +613,26 @@
         var isVoiceDetected = (vol >= noiseGateLevel);
 
         if (isVoiceDetected) {
-          gateOpenUntil = now + 350; // 말 끝이 잘리지 않게 0.35초 여유 꼬리 유지
+          gateOpenUntil = now + 450;
         }
 
         var isGateOpen = (now <= gateOpenUntil);
         if (gateBadge) {
           if (isGateOpen) {
-            gateBadge.textContent = '음성 전송중';
+            gateBadge.textContent = '목소리 인식';
             gateBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-[#13261a] text-[#4ade80] font-bold shrink-0';
           } else {
-            gateBadge.textContent = '잡음 차단중';
+            gateBadge.textContent = '잡음 줄임';
             gateBadge.className = 'text-[10px] px-1.5 py-0.5 rounded bg-[#222222] text-[#777777] shrink-0';
           }
         }
 
-        // ★ 1. 말하는 도중 즉시 끼어들기 (잡음 차단 기준의 1.8배 이상 확실한 목소리일 때)
+        // ★ 1. 말하는 도중 즉시 끼어들기
         if (aiPhase === 'SPEAKING' || activeSources.length > 0) {
-          var bargeThreshold = Math.min(85, Math.max(noiseGateLevel * 1.8, 32));
+          var bargeThreshold = Math.min(70, Math.max(noiseGateLevel * 2.2, 18));
           if (vol >= bargeThreshold) {
             bargeInStreak++;
-            if (bargeInStreak >= 5) {
+            if (bargeInStreak >= 4) {
               stopAllPlayback();
               currentAiBubble = null;
               bargeInStreak = 0;
@@ -638,14 +644,14 @@
             bargeInStreak = 0;
           }
         } else {
-          // ★ 2. 듣는중 -> 생각중 자동 상태 전환
+          // ★ 2. 듣는중 -> 생각중 전환
           if (isVoiceDetected) {
             userWasSpeaking = true;
             lastUserVoiceTime = now;
             if (aiPhase !== 'LISTENING' && aiPhase !== 'SEARCHING') {
               setAiPhase('LISTENING');
             }
-          } else if (userWasSpeaking && (now - lastUserVoiceTime > 380)) {
+          } else if (userWasSpeaking && (now - lastUserVoiceTime > 350)) {
             userWasSpeaking = false;
             if (aiPhase === 'LISTENING') {
               setAiPhase('THINKING');
@@ -653,17 +659,11 @@
           }
         }
 
-        // ★ 3. 노이즈 게이트 적용: 잡음 구간은 완전 무음(0)으로 깎아서 전송
-        var pcm16;
-        if (isGateOpen) {
-          pcm16 = downsampleTo16k(inputData, captureCtx.sampleRate);
-        } else {
-          var ratio = captureCtx.sampleRate / 16000;
-          var silentLen = Math.round(inputData.length / ratio);
-          pcm16 = new Int16Array(silentLen); // 모두 0 (완전 무음)
-        }
-
+        // ★ 3. 소프트 잡음 감소: 잡음 구간도 0으로 자르지 않고 15% 볼륨으로 부드럽게 낮춰 전송
+        var gain = isGateOpen ? 1.0 : 0.15;
+        var pcm16 = downsampleTo16k(inputData, captureCtx.sampleRate, gain);
         var b64 = arrayBufferToBase64(pcm16.buffer);
+
         ws.send(JSON.stringify({
           realtimeInput: {
             mediaChunks: [{
@@ -765,11 +765,12 @@
       }
     }
 
-    function downsampleTo16k(buffer, sampleRate) {
+    function downsampleTo16k(buffer, sampleRate, gain) {
+      var g = (gain === undefined) ? 1.0 : gain;
       if (sampleRate === 16000) {
         var outSame = new Int16Array(buffer.length);
         for (var i = 0; i < buffer.length; i++) {
-          var s = Math.max(-1, Math.min(1, buffer[i]));
+          var s = Math.max(-1, Math.min(1, buffer[i] * g));
           outSame[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
         return outSame;
@@ -786,7 +787,7 @@
           accum += buffer[j];
           count++;
         }
-        var sample = Math.max(-1, Math.min(1, accum / (count || 1)));
+        var sample = Math.max(-1, Math.min(1, (accum / (count || 1)) * g));
         result[offsetResult] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
         offsetResult++;
         offsetBuffer = nextOffsetBuffer;
@@ -850,6 +851,7 @@
     }
 
     function cleanupLiveSession() {
+      clearTimeout(thinkingTimeout);
       isLiveConnected = false;
       ws = null;
       stopAllPlayback();
@@ -1039,8 +1041,8 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-      var savedGate = 20;
-      try { savedGate = Number(localStorage.getItem('runvis_noise_gate')) || 20; } catch (e) {}
+      var savedGate = 8;
+      try { savedGate = Number(localStorage.getItem('runvis_noise_gate_v2')) || 8; } catch (e) {}
       var slider = document.getElementById('noiseGateSlider');
       slider.value = savedGate;
       updateNoiseGateUI(savedGate);
