@@ -57,12 +57,15 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 초고속 대화 + 자동 검색</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live 초고속 대화 + 즉시 끼어들기</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
             준비됨
           </span>
         </div>
-        <span id="micDiagBadge" class="text-xs text-[#999999]">통화 대기</span>
+        <!-- ★ 런비스 현재 상태 대형 배지 -->
+        <span id="aiModeBadge" class="px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]">
+          ⏸ 대기중
+        </span>
       </div>
 
       <div class="flex flex-col sm:flex-row gap-2.5">
@@ -80,7 +83,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">초고속 반응 · 필요할 때만 자동 구글 검색 · 15분 자동 재접속</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">0.2초 초고속 반응 · 말하는 도중 바로 끼어들기 가능</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -124,7 +127,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요, 원장님! <strong>자동 구글 검색 엔진</strong>과 <strong>무중단 재접속</strong>이 업그레이드되었습니다. 날씨나 최신 뉴스도 편하게 물어보세요!
+              안녕하세요, 원장님! 이제 <strong>듣는중 / 생각중 / 말하는중</strong> 상태가 실시간으로 표시되고, 제가 말하는 도중에 말씀하시면 바로 멈추고 듣습니다!
             </div>
           </div>
         </div>
@@ -246,6 +249,13 @@
     var nextPlayTime = 0;
     var activeSources = [];
 
+    // ★ 상태 머신 & 즉시 끼어들기(로컬 VAD) 변수
+    var aiPhase = 'OFF'; // OFF, CONNECTING, LISTENING, THINKING, SEARCHING, SPEAKING
+    var userWasSpeaking = false;
+    var lastUserVoiceTime = 0;
+    var bargeInStreak = 0;
+    var serverTurnDone = true;
+
     var currentUserBubble = null;
     var currentAiBubble = null;
 
@@ -270,59 +280,97 @@
       box._t = setTimeout(function() { box.classList.add('opacity-0'); }, 2800);
     }
 
-    function setLiveUI(state, statusText) {
+    // ★ 런비스 상태 표시 통합 관리 (듣는중 / 생각중 / 말하는중 / 검색중)
+    function setAiPhase(phase, customStatus) {
+      aiPhase = phase;
       var dot = document.getElementById('stateDot');
       var label = document.getElementById('stateLabel');
       var pill = document.getElementById('statePill');
+      var badge = document.getElementById('aiModeBadge');
       var btn = document.getElementById('liveToggleBtn');
       var title = document.getElementById('liveBtnTitle');
       var sub = document.getElementById('liveBtnSub');
-      var badge = document.getElementById('liveSwitchBadge');
+      var swBadge = document.getElementById('liveSwitchBadge');
       var iconWrap = document.getElementById('micIconWrap');
       var muteBtn = document.getElementById('btnMuteMic');
       var volWrap = document.getElementById('volumeBarWrap');
-      var diag = document.getElementById('micDiagBadge');
+      var statusEl = document.getElementById('liveStatusText');
 
-      if (statusText) document.getElementById('liveStatusText').textContent = statusText;
       btn.classList.remove('live-active');
 
-      if (state === 'OFF') {
+      if (phase === 'OFF') {
         dot.className = 'w-2 h-2 rounded-full bg-[#666666]';
         label.textContent = '대기중';
         label.className = 'text-[#999999] font-bold';
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#181818] border border-[#333333] text-xs font-bold';
+        badge.textContent = '⏸ 대기중';
+        badge.className = 'px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '초고속 반응 · 필요할 때만 자동 구글 검색 · 15분 자동 재접속';
-        badge.textContent = 'OFF';
-        badge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
+        sub.textContent = '0.2초 초고속 반응 · 말하는 도중 바로 끼어들기 가능';
+        swBadge.textContent = 'OFF';
+        swBadge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
         volWrap.classList.add('hidden');
-        diag.textContent = '통화 대기';
-        diag.className = 'text-xs text-[#999999]';
-      } else if (state === 'CONNECTING') {
+        statusEl.textContent = customStatus || '[실시간 음성 대화 시작] 버튼을 눌러 런비스와 통화를 시작하세요.';
+        return;
+      }
+
+      if (phase === 'CONNECTING') {
         dot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse';
-        label.textContent = '연결중...';
+        label.textContent = '연결중';
         label.className = 'text-yellow-300 font-bold';
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#262212] border border-yellow-500/50 text-xs font-bold';
+        badge.textContent = '🔄 연결중...';
+        badge.className = 'px-2.5 py-1 rounded-full bg-[#262212] border border-yellow-500/50 text-xs font-bold text-yellow-300';
         title.textContent = '런비스 Live 서버 연결 중...';
-        badge.textContent = '...';
-        diag.textContent = '연결 시도 중';
-      } else if (state === 'LIVE') {
+        swBadge.textContent = '...';
+        statusEl.textContent = customStatus || '마이크와 서버를 연결하고 있습니다...';
+        return;
+      }
+
+      // 통화 연결 상태 공통 UI
+      btn.classList.add('live-active');
+      iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
+      title.textContent = '통화 종료하기 (LIVE 연결됨)';
+      sub.textContent = '말하는 도중에 끼어들면 즉시 멈추고 다시 듣습니다.';
+      swBadge.textContent = 'LIVE';
+      swBadge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
+      muteBtn.classList.remove('hidden');
+      volWrap.classList.remove('hidden');
+
+      if (phase === 'LISTENING') {
         dot.className = 'w-2 h-2 rounded-full bg-[#E50914] animate-ping';
-        label.textContent = '실시간 통화중';
+        label.textContent = '듣는중';
         label.className = 'text-white font-bold';
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold';
-        btn.classList.add('live-active');
-        iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
-        title.textContent = '통화 종료하기 (LIVE 연결됨)';
-        sub.textContent = '편하게 말씀하세요! 최신 정보도 알아서 구글 검색해 답합니다.';
-        badge.textContent = 'LIVE';
-        badge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
-        muteBtn.classList.remove('hidden');
-        volWrap.classList.remove('hidden');
-        diag.textContent = '⚡ 초고속 연결 + 자동 검색 대기';
-        diag.className = 'text-xs font-bold text-[#4ade80]';
+        badge.textContent = '🎤 듣는중';
+        badge.className = 'px-2.5 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold text-[#ff6b72]';
+        statusEl.textContent = customStatus || '원장님 말씀을 듣고 있습니다... 편하게 말씀하세요.';
+      } else if (phase === 'THINKING') {
+        dot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse';
+        label.textContent = '생각중';
+        label.className = 'text-yellow-300 font-bold';
+        pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#262212] border border-yellow-500/60 text-xs font-bold';
+        badge.textContent = '🧠 생각중...';
+        badge.className = 'px-2.5 py-1 rounded-full bg-[#262212] border border-yellow-500/60 text-xs font-bold text-yellow-300';
+        statusEl.textContent = customStatus || '런비스가 답변을 생각하고 있습니다...';
+      } else if (phase === 'SEARCHING') {
+        dot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-pulse';
+        label.textContent = '검색중';
+        label.className = 'text-sky-300 font-bold';
+        pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#102333] border border-sky-400/60 text-xs font-bold';
+        badge.textContent = '🔍 구글 검색중...';
+        badge.className = 'px-2.5 py-1 rounded-full bg-[#102333] border border-sky-400/60 text-xs font-bold text-sky-300';
+        statusEl.textContent = customStatus || '구글에서 최신 정보를 찾고 있습니다...';
+      } else if (phase === 'SPEAKING') {
+        dot.className = 'w-2 h-2 rounded-full bg-[#4ade80] animate-pulse';
+        label.textContent = '말하는중';
+        label.className = 'text-[#4ade80] font-bold';
+        pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#13261a] border border-[#4ade80]/60 text-xs font-bold';
+        badge.textContent = '🔊 말하는중';
+        badge.className = 'px-2.5 py-1 rounded-full bg-[#13261a] border border-[#4ade80]/60 text-xs font-bold text-[#4ade80]';
+        statusEl.textContent = customStatus || '런비스가 대답하고 있습니다. (말을 걸면 바로 멈춥니다)';
       }
     }
 
@@ -349,7 +397,7 @@
         return;
       }
 
-      setLiveUI('CONNECTING', isAutoReconnect ? '세션 만료로 1초 만에 자동 재접속 중...' : '마이크 권한과 제미나이 Live 서버를 연결하고 있습니다...');
+      setAiPhase('CONNECTING', isAutoReconnect ? '세션 만료로 1초 만에 자동 재접속 중...' : '마이크 권한과 제미나이 Live 서버를 연결하고 있습니다...');
 
       try {
         var AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -386,18 +434,15 @@
         };
 
         ws.onerror = function() {
-          if (!isAutoReconnect) {
-            appendChat('system', 'WebSocket 연결 오류가 발생했습니다.');
-          }
+          if (!isAutoReconnect) appendChat('system', 'WebSocket 연결 오류가 발생했습니다.');
         };
 
         ws.onclose = function(e) {
           var wasConnected = isLiveConnected;
           cleanupLiveSession();
 
-          // 원장님이 직접 끈 게 아니고, 통화 도중 끊겼다면 1초 뒤 자동 재접속!
           if (!userEndedSession && wasConnected) {
-            setLiveUI('CONNECTING', '세션 갱신을 위해 자동 재접속 중입니다...');
+            setAiPhase('CONNECTING', '세션 갱신을 위해 자동 재접속 중입니다...');
             reconnectTimer = setTimeout(function() {
               reconnectTimer = null;
               if (!userEndedSession) startLiveSession(true);
@@ -430,13 +475,14 @@
               }
             }
           },
+          // ★ 초고속 반응 튜닝: 0.2초 무음 감지
           realtimeInputConfig: {
             automaticActivityDetection: {
               disabled: false,
               startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
               endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
-              prefixPaddingMs: 100,
-              silenceDurationMs: 300
+              prefixPaddingMs: 60,
+              silenceDurationMs: 200
             }
           },
           inputAudioTranscription: {},
@@ -444,9 +490,9 @@
           systemInstruction: {
             parts: [{
               text: '당신은 런수학학원 원장님의 전담 AI 비서 런비스입니다. ' +
-                    '기계적인 존댓말을 절대 쓰지 말고, 친근하고 센스 있는 젊은 비서처럼 자연스러운 한국어 구어체로 1~2문장 이내로 짧고 경쾌하게 티키타카 하듯 대답하세요. ' +
-                    '원장님이 날씨, 뉴스, 수능 등급컷, 환율, 맛집, 최신 정보 등 실시간 정보나 모르는 사실을 물어보면 절대 "검색할 수 없다"고 말하지 말고 반드시 search_web 함수를 호출해서 검색 결과를 확인한 뒤 자연스럽게 답하세요. ' +
-                    '학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 등을 지시하면 반드시 create_academy_task 함수를 호출하고, 승인/발송을 지시하면 approve_all_tasks 함수를 호출하세요.'
+                    '서론이나 군더더기 없이, 친근하고 센스 있는 젊은 비서처럼 자연스러운 한국어 구어체로 1~2문장 이내로 아주 짧고 빠르게 티키타카 하듯 대답하세요. ' +
+                    '날씨, 뉴스, 수능 등급컷, 환율 등 실시간 정보나 모르는 사실을 물어보면 절대 못 찾는다고 하지 말고 반드시 search_web 함수를 호출해 확인 후 답하세요. ' +
+                    '학생 결석, 보강, 시간변경, 과제체크, 학부모 리포트 등을 지시하면 create_academy_task 함수를, 승인/발송을 지시하면 approve_all_tasks 함수를 호출하세요.'
             }]
           },
           tools: [
@@ -491,46 +537,82 @@
       ws.send(JSON.stringify(setupMsg));
     }
 
-    // ★ 백그라운드 구글 실시간 검색 엔진 (충돌 없음)
     async function runGoogleSearch(query) {
       var apiKey = getApiKey();
       var url = ['https:', '', 'generativelanguage.googleapis.com', 'v1beta', 'models', SEARCH_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey)].join('/');
       try {
-        document.getElementById('liveStatusText').textContent = '🔍 구글 실시간 검색 중: "' + query + '"';
+        setAiPhase('SEARCHING', '🔍 구글 검색 중: "' + query + '"');
         var res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: query + ' (최신 구글 검색 결과를 바탕으로 핵심 사실만 한국어로 2~3문장 이내로 요약해줘)' }] }],
+            contents: [{ role: 'user', parts: [{ text: query + ' (최신 구글 검색 결과를 바탕으로 핵심 사실만 한국어로 2문장 이내로 짧게 요약해줘)' }] }],
             tools: [{ google_search: {} }],
-            generationConfig: { temperature: 0.3, maxOutputTokens: 300, thinkingConfig: { thinkingBudget: 0 } }
+            generationConfig: { temperature: 0.3, maxOutputTokens: 250, thinkingConfig: { thinkingBudget: 0 } }
           })
         });
         var data = await res.json();
         var parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
         var answer = parts.map(function(p) { return p.text || ''; }).join('').trim();
-        document.getElementById('liveStatusText').textContent = '⚡ 검색 완료! 편하게 대화를 이어가세요.';
+        setAiPhase('THINKING', '검색 완료! 답변을 정리하고 있습니다...');
         return answer || '검색 결과를 찾지 못했습니다.';
       } catch (err) {
-        document.getElementById('liveStatusText').textContent = '⚡ 초고속 연결 완료! 지금 바로 편하게 말씀하세요.';
         return '검색 중 일시적 오류가 발생했습니다: ' + err.message;
       }
     }
 
     function startMicStreaming() {
       micSource = captureCtx.createMediaStreamSource(mediaStream);
-      processorNode = captureCtx.createScriptProcessor(2048, 1, 1);
+      // ★ 버퍼 크기 1024로 최소화 (전송 지연 약 20ms 수준)
+      processorNode = captureCtx.createScriptProcessor(1024, 1, 1);
 
       processorNode.onaudioprocess = function(e) {
         if (!isLiveConnected || !ws || ws.readyState !== WebSocket.OPEN || isMuted) return;
 
         var inputData = e.inputBuffer.getChannelData(0);
 
-        var sum = 0;
-        for (var i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
-        var vol = Math.min(100, Math.round((sum / inputData.length) * 450));
+        // RMS 음량 계산
+        var sumSq = 0;
+        for (var i = 0; i < inputData.length; i++) sumSq += inputData[i] * inputData[i];
+        var rms = Math.sqrt(sumSq / inputData.length);
+
+        var vol = Math.min(100, Math.round(rms * 500));
         var volBar = document.getElementById('volumeBar');
         if (volBar) volBar.style.width = vol + '%';
+
+        var now = Date.now();
+
+        // ★ 1. 말하는 도중 즉시 끼어들기 (클라이언트 측 즉각 중단)
+        if (aiPhase === 'SPEAKING' || activeSources.length > 0) {
+          if (rms > 0.045) {
+            bargeInStreak++;
+            // 약 80~100ms 연속 목소리 감지 시 즉시 런비스 음성 끊고 듣는중 전환!
+            if (bargeInStreak >= 4) {
+              stopAllPlayback();
+              currentAiBubble = null;
+              bargeInStreak = 0;
+              userWasSpeaking = true;
+              lastUserVoiceTime = now;
+              setAiPhase('LISTENING', '🎤 원장님 말씀을 다시 듣고 있습니다...');
+            }
+          } else {
+            bargeInStreak = 0;
+          }
+        } else {
+          // ★ 2. 듣는중 -> 생각중 자동 상태 전환
+          if (rms > 0.02) {
+            userWasSpeaking = true;
+            lastUserVoiceTime = now;
+            if (aiPhase !== 'LISTENING' && aiPhase !== 'SEARCHING') {
+              setAiPhase('LISTENING');
+            }
+          } else if (userWasSpeaking && (now - lastUserVoiceTime > 320)) {
+            userWasSpeaking = false;
+            if (aiPhase === 'LISTENING') {
+              setAiPhase('THINKING');
+            }
+          }
+        }
 
         var pcm16 = downsampleTo16k(inputData, captureCtx.sampleRate);
         var b64 = arrayBufferToBase64(pcm16.buffer);
@@ -553,7 +635,10 @@
       if (msg.setupComplete) {
         isLiveConnected = true;
         isMuted = false;
-        setLiveUI('LIVE', '⚡ 초고속 연결 완료! 지금 바로 편하게 말씀하세요.');
+        userWasSpeaking = false;
+        bargeInStreak = 0;
+        serverTurnDone = true;
+        setAiPhase('LISTENING', '🎤 연결 완료! 지금 바로 편하게 말씀하세요.');
         startMicStreaming();
         return;
       }
@@ -598,6 +683,8 @@
         if (sc.interrupted) {
           stopAllPlayback();
           currentAiBubble = null;
+          serverTurnDone = true;
+          if (isLiveConnected) setAiPhase('LISTENING');
         }
 
         if (sc.inputTranscription && sc.inputTranscription.text) {
@@ -613,14 +700,20 @@
         if (sc.modelTurn && sc.modelTurn.parts) {
           sc.modelTurn.parts.forEach(function(part) {
             if (part.inlineData && part.inlineData.data) {
+              serverTurnDone = false;
+              if (aiPhase !== 'SPEAKING') setAiPhase('SPEAKING');
               playPcm24kAudio(part.inlineData.data);
             }
           });
         }
 
         if (sc.turnComplete) {
+          serverTurnDone = true;
           currentUserBubble = null;
           currentAiBubble = null;
+          if (activeSources.length === 0 && isLiveConnected) {
+            setAiPhase('LISTENING');
+          }
         }
       }
     }
@@ -675,7 +768,7 @@
       source.connect(playbackCtx.destination);
 
       var now = playbackCtx.currentTime;
-      if (nextPlayTime < now) nextPlayTime = now + 0.02;
+      if (nextPlayTime < now) nextPlayTime = now + 0.01;
       source.start(nextPlayTime);
       nextPlayTime += audioBuffer.duration;
 
@@ -683,6 +776,10 @@
       source.onended = function() {
         var idx = activeSources.indexOf(source);
         if (idx !== -1) activeSources.splice(idx, 1);
+        // 모든 음성이 다 재생되었고 서버 턴도 끝났다면 다시 듣는중으로 복귀
+        if (activeSources.length === 0 && serverTurnDone && isLiveConnected && aiPhase === 'SPEAKING') {
+          setAiPhase('LISTENING');
+        }
       };
     }
 
@@ -722,8 +819,10 @@
 
       currentUserBubble = null;
       currentAiBubble = null;
+      userWasSpeaking = false;
+      bargeInStreak = 0;
       if (userEndedSession) {
-        setLiveUI('OFF', '[실시간 음성 대화 시작] 버튼을 눌러 런비스와 통화를 시작하세요.');
+        setAiPhase('OFF');
       }
     }
 
@@ -755,6 +854,7 @@
       }
 
       appendChat('user', text);
+      setAiPhase('THINKING');
       ws.send(JSON.stringify({
         clientContent: {
           turns: [{ role: 'user', parts: [{ text: text }] }],
