@@ -33,7 +33,7 @@
       <div class="flex items-center gap-2.5">
         <span class="text-lg sm:text-xl font-black tracking-wide text-[#E50914]">RUN-VIS</span>
         <span class="px-1.5 py-0.5 rounded bg-[#E50914]/20 border border-[#E50914]/50 text-[10px] font-black text-[#ff6b72]">LIVE</span>
-        <span class="text-xs text-[#B3B3B3] hidden sm:inline">실시간 AI 비서 · 독립 기억 연동</span>
+        <span class="text-xs text-[#B3B3B3] hidden sm:inline">초경량 음성 모드 · 독립 기억 연동</span>
       </div>
 
       <div class="flex items-center gap-2">
@@ -57,9 +57,9 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live · 핸즈프리 초고속 + 독립 기억</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live · 초경량 음성 직통</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
-            즉시응답 모드
+            받아쓰기 OFF (최고속)
           </span>
           <span id="memoryBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#333333] text-[#B3B3B3] font-bold">
             기억 스캔 중...
@@ -85,7 +85,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">버튼 없이 말로 바로 호출 · 선 대답 후 시트 저장 · 기억 자동 스캔</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">채팅 받아쓰기 생략 · 음성 최우선 반응 · 독립 기억 연동</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -135,10 +135,10 @@
     <!-- 2. 하단 2단 영역: 대화창 & 승인 대기열 -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-      <!-- 좌측: 대화 기록 -->
+      <!-- 좌측: 텍스트 입력 & 처리 알림 -->
       <section class="lg:col-span-5 bg-[#222222] border border-[#333333] rounded-lg flex flex-col h-[460px]">
         <div class="px-4 py-3 border-b border-[#333333] flex items-center justify-between">
-          <span class="text-xs font-bold text-white">실시간 대화 로그</span>
+          <span class="text-xs font-bold text-white">텍스트 입력 · 처리 알림</span>
           <button type="button" id="btnClearChat" class="text-[11px] text-[#B3B3B3] hover:text-white cursor-pointer">비우기</button>
         </div>
 
@@ -146,7 +146,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              안녕하세요! 시트 저장을 기다리지 않고 먼저 대답하도록 속도를 끌어올렸습니다. 편하게 불러서 말씀해 보세요!
+              초경량 음성 모드입니다. 음성 반응 속도를 최우선으로 하기 위해 실시간 받아쓰기를 껐습니다. 편하게 말씀해 보세요!
             </div>
           </div>
         </div>
@@ -182,7 +182,7 @@
 
           <div id="pendingArea" class="space-y-3">
             <div class="py-7 text-center text-xs text-[#777777]">
-              대화 중 출결·보강·과제·학부모 리포트를 지시하시면 여기에 카드로 정리됩니다.
+              대화 중 출결·보강·과제·학부모 리포트·기억 저장을 지시하시면 여기에 카드로 정리됩니다.
             </div>
           </div>
         </section>
@@ -294,10 +294,6 @@
     var loadedMemoryBlock = '';
     var loadedMemoryCount = 0;
 
-    var currentUserBubble = null;
-    var currentAiBubble = null;
-    var lastPrecreatedSignature = '';
-    var lastPrecreatedAt = 0;
     var lastSavedMemorySig = '';
     var lastSavedMemoryAt = 0;
 
@@ -332,7 +328,6 @@
         : 'text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#333333] text-[#B3B3B3] font-bold';
     }
 
-    // 런비스 켤 때 독립 기억 시트를 스캔해서 규칙과 메모를 불러옴
     async function fetchMemoryContext() {
       var url = getMemoryWebAppUrl();
       if (!url) {
@@ -380,7 +375,6 @@
       }
     }
 
-    // 선(先) 대답, 후(後) 백그라운드 시트 저장 (대기 시간 0초)
     function saveMemoryToSheetBackground(content, type, isRule) {
       var clean = String(content || '').trim();
       if (!clean) return;
@@ -406,6 +400,7 @@
         isReport: false
       });
       renderPendingTasks();
+      appendChat('assistant', '💾 기억 시트에 저장했습니다: ' + clean);
 
       fetch(url, {
         method: 'POST',
@@ -444,52 +439,6 @@
       }
     }
 
-    function tryPrecreateTaskFromUtterance(utterance) {
-      var txt = String(utterance || '').trim();
-      if (!txt || txt.length < 3) return;
-
-      // AI가 도구를 빼먹어도 "기록해 둬 / 기억해 둬"는 자동 백그라운드 저장
-      if (/기록\s*해\s*둬|기억\s*해\s*둬|저장\s*해\s*둬/.test(txt)) {
-        var cleanedNote = txt.replace(/(런비스야?|야\s*런비스)?\s*/g, '').replace(/(라고|이라고)?\s*(기록|기억|저장)\s*해\s*둬\.?$/g, '').trim();
-        var isRuleGuess = /불러|호칭|말투|앞으로|항상|규칙/.test(txt);
-        saveMemoryToSheetBackground(cleanedNote || txt, isRuleGuess ? '기억규칙' : '기억메모', isRuleGuess);
-        return;
-      }
-
-      var category = '';
-      if (/결석/.test(txt)) category = '결석';
-      else if (/보강/.test(txt)) category = '보강';
-      else if (/시간\s*변경|변경/.test(txt)) category = '시간변경';
-      else if (/과제|숙제/.test(txt)) category = '과제체크';
-      else if (/리포트/.test(txt)) category = '학부모 리포트';
-
-      if (!category) return;
-
-      var student = '학생';
-      var nameMatch = txt.match(/([가-힣]{2,4})\s*(학생|님|이|가|은|는)?\s*(오늘|내일|모레|\d+시)?\s*(결석|보강|시간변경|변경|과제|숙제|리포트)/);
-      if (nameMatch && nameMatch[1]) {
-        var candidate = nameMatch[1].trim();
-        if (['오늘', '내일', '모레', '방금', '지금', '학원', '선생님', '원장님', '런비스'].indexOf(candidate) === -1) {
-          student = candidate;
-        }
-      }
-
-      var sig = student + '|' + category + '|' + txt.slice(0, 12);
-      var now = Date.now();
-      if (sig === lastPrecreatedSignature && (now - lastPrecreatedAt) < 4000) return;
-      lastPrecreatedSignature = sig;
-      lastPrecreatedAt = now;
-
-      pendingTasks.unshift({
-        id: 'task_' + now + '_' + Math.floor(Math.random() * 1000),
-        student: student,
-        category: category,
-        summary: txt,
-        isReport: category === '학부모 리포트'
-      });
-      renderPendingTasks();
-    }
-
     function setAiPhase(phase, customStatus) {
       clearTimeout(thinkingTimeout);
       aiPhase = phase;
@@ -517,7 +466,7 @@
         badge.className = 'px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '버튼 없이 말로 바로 호출 · 선 대답 후 시트 저장 · 기억 자동 스캔';
+        sub.textContent = '채팅 받아쓰기 생략 · 음성 최우선 반응 · 독립 기억 연동';
         swBadge.textContent = 'OFF';
         swBadge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
@@ -542,7 +491,7 @@
       btn.classList.add('live-active');
       iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
       title.textContent = '통화 종료하기 (LIVE 연결됨)';
-      sub.textContent = '말하는 도중에 끼어들면 즉시 멈추고 다시 듣습니다.';
+      sub.textContent = '초경량 음성 모드 작동 중 (말하면 바로 반응합니다)';
       swBadge.textContent = 'LIVE';
       swBadge.className = 'px-3 py-1 rounded bg-white text-[#E50914] text-xs font-black shrink-0';
       muteBtn.classList.remove('hidden');
@@ -555,7 +504,7 @@
         pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold';
         badge.textContent = '🎤 듣는중';
         badge.className = 'px-2.5 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold text-[#ff6b72]';
-        statusEl.textContent = customStatus || '원장님 말씀을 듣고 있습니다... 바로 지시해 주세요.';
+        statusEl.textContent = customStatus || '원장님 말씀을 듣고 있습니다... 바로 말씀해 주세요.';
       } else if (phase === 'THINKING') {
         dot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse';
         label.textContent = '생각중';
@@ -569,7 +518,7 @@
           if (isLiveConnected && aiPhase === 'THINKING') {
             setAiPhase('LISTENING');
           }
-        }, 1100);
+        }, 1000);
       } else if (phase === 'SEARCHING') {
         dot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-pulse';
         label.textContent = '검색중';
@@ -674,7 +623,7 @@
 
       var baseInstruction =
         '당신은 런수학학원 원장님의 독립된 전담 AI 비서 런비스입니다. 당신이 주인공입니다. ' +
-        '[초고속 단답 규칙] 망설이지 말고 0.1초 만에 첫 마디를 꺼내세요. 설명을 길게 늘이지 말고 1문장으로 짧게 답하세요. ' +
+        '[초고속 단답 규칙] 망설이지 말고 즉시 첫 마디를 꺼내세요. 설명을 길게 늘이지 말고 1문장으로 짧고 경쾌하게 답하세요. ' +
         '[호출 응답 규칙] "런비스"라고 부르면 즉시 "네, 원장님!"이라고만 답하세요. ' +
         '[기억 저장 규칙] 원장님이 "기록해 둬", "기억해 둬", "저장해 둬"라고 말하면 반드시 remember_note 함수를 호출해 독립 기억 시트에 기록하고 짧게 확인 답을 하세요. ' +
         '[최우선 원칙] 새 지시가 오면 이전 대화는 잊고 방금 지시만 바로 처리하세요. ' +
@@ -685,6 +634,7 @@
         baseInstruction += '\n\n[독립 기억 시트에서 불러온 기억 및 규칙 - 반드시 따르세요]\n' + loadedMemoryBlock;
       }
 
+      // 초경량 음성 모드: inputAudioTranscription / outputAudioTranscription 제거
       var setupMsg = {
         setup: {
           model: model,
@@ -708,8 +658,6 @@
               silenceDurationMs: 40
             }
           },
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
           systemInstruction: {
             parts: [{ text: baseInstruction }]
           },
@@ -865,7 +813,6 @@
               stopAllPlayback();
               cancelOngoingSearch();
               suppressOldAudioUntil = now + 180;
-              currentAiBubble = null;
               bargeInStreak = 0;
               userWasSpeaking = true;
               lastUserVoiceTime = now;
@@ -919,7 +866,7 @@
         bargeInStreak = 0;
         serverTurnDone = true;
         suppressOldAudioUntil = 0;
-        setAiPhase('LISTENING', '🎤 연결 완료! 기억 스캔 반영됨 · 바로 말씀해 주세요.');
+        setAiPhase('LISTENING', '🎤 초경량 음성 모드 연결 완료! 바로 말씀해 주세요.');
         startMicStreaming();
         return;
       }
@@ -932,7 +879,6 @@
 
           if (fc.name === 'remember_note') {
             var mArgs = fc.args || {};
-            // 기다리지 않고 백그라운드로 즉시 저장 -> AI가 0.01초 만에 대답 시작
             saveMemoryToSheetBackground(mArgs.content, mArgs.category, mArgs.isRule);
             resObj = { result: '독립 기억 시트에 기록 완료했습니다.' };
           } else if (fc.name === 'search_web') {
@@ -945,22 +891,15 @@
             var newCat = a.category || '업무처리';
             var newSum = a.summary || '';
 
-            var existingIdx = pendingTasks.findIndex(function(item) {
-              return item.category === newCat && (item.student === '학생' || item.student === newStudent);
+            pendingTasks.unshift({
+              id: 'task_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+              student: newStudent,
+              category: newCat,
+              summary: newSum,
+              isReport: !!a.isReport || newCat === '학부모 리포트'
             });
-            if (existingIdx !== -1 && pendingTasks[existingIdx].student === '학생' && newStudent !== '학생') {
-              pendingTasks[existingIdx].student = newStudent;
-              if (newSum) pendingTasks[existingIdx].summary = newSum;
-            } else if (existingIdx === -1) {
-              pendingTasks.unshift({
-                id: 'task_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-                student: newStudent,
-                category: newCat,
-                summary: newSum,
-                isReport: !!a.isReport || newCat === '학부모 리포트'
-              });
-            }
             renderPendingTasks();
+            appendChat('assistant', '📋 [' + newCat + '] ' + newStudent + ' 카드를 등록했습니다.');
             resObj = { result: newStudent + ' ' + newCat + ' 등록 완료.' };
           } else if (fc.name === 'approve_all_tasks') {
             approveAllTasks();
@@ -981,22 +920,8 @@
         if (sc.interrupted) {
           stopAllPlayback();
           suppressOldAudioUntil = 0;
-          currentAiBubble = null;
           serverTurnDone = true;
           if (isLiveConnected) setAiPhase('LISTENING');
-        }
-
-        if (sc.inputTranscription && sc.inputTranscription.text) {
-          appendOrUpdateStreamBubble('user', sc.inputTranscription.text);
-          tryPrecreateTaskFromUtterance(currentUserBubble ? currentUserBubble.textContent : sc.inputTranscription.text);
-          currentAiBubble = null;
-        }
-
-        if (sc.outputTranscription && sc.outputTranscription.text) {
-          if (Date.now() >= suppressOldAudioUntil) {
-            appendOrUpdateStreamBubble('assistant', sc.outputTranscription.text);
-            currentUserBubble = null;
-          }
         }
 
         if (sc.modelTurn && sc.modelTurn.parts) {
@@ -1011,13 +936,8 @@
         }
 
         if (sc.turnComplete) {
-          if (currentUserBubble && currentUserBubble.textContent) {
-            tryPrecreateTaskFromUtterance(currentUserBubble.textContent);
-          }
           serverTurnDone = true;
           suppressOldAudioUntil = 0;
-          currentUserBubble = null;
-          currentAiBubble = null;
           if (activeSources.length === 0 && isLiveConnected) {
             setAiPhase('LISTENING');
           }
@@ -1121,8 +1041,6 @@
       if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); mediaStream = null; }
       if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
 
-      currentUserBubble = null;
-      currentAiBubble = null;
       userWasSpeaking = false;
       bargeInStreak = 0;
       suppressOldAudioUntil = 0;
@@ -1161,7 +1079,6 @@
       suppressOldAudioUntil = 0;
 
       appendChat('user', text);
-      tryPrecreateTaskFromUtterance(text);
       setAiPhase('THINKING');
       ws.send(JSON.stringify({
         clientContent: {
@@ -1169,32 +1086,6 @@
           turnComplete: true
         }
       }));
-    }
-
-    function appendOrUpdateStreamBubble(role, chunkText) {
-      var stream = document.getElementById('chatStream');
-      if (role === 'user') {
-        if (!currentUserBubble) {
-          var wrap = document.createElement('div');
-          wrap.className = 'flex flex-col items-end space-y-1';
-          wrap.innerHTML = '<span class="text-[11px] font-bold text-[#999999]">원장님</span>' +
-            '<div class="bg-[#2c2c2c] border border-[#444444] rounded-lg rounded-tr-none px-3.5 py-2 text-xs sm:text-sm text-white max-w-[90%] leading-relaxed"></div>';
-          stream.appendChild(wrap);
-          currentUserBubble = wrap.querySelector('div');
-        }
-        currentUserBubble.textContent += chunkText;
-      } else {
-        if (!currentAiBubble) {
-          var wrapAi = document.createElement('div');
-          wrapAi.className = 'flex flex-col items-start space-y-1';
-          wrapAi.innerHTML = '<span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>' +
-            '<div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed"></div>';
-          stream.appendChild(wrapAi);
-          currentAiBubble = wrapAi.querySelector('div');
-        }
-        currentAiBubble.textContent += chunkText;
-      }
-      stream.scrollTop = stream.scrollHeight;
     }
 
     function appendChat(role, text) {
@@ -1224,7 +1115,7 @@
       badge.textContent = pendingTasks.length + '건';
       if (pendingTasks.length === 0) {
         approveBtn.classList.add('hidden');
-        area.innerHTML = '<div class="py-7 text-center text-xs text-[#777777]">대화 중 출결·보강·과제·학부모 리포트를 지시하시면 여기에 카드로 정리됩니다.</div>';
+        area.innerHTML = '<div class="py-7 text-center text-xs text-[#777777]">대화 중 출결·보강·과제·학부모 리포트·기억 저장을 지시하시면 여기에 카드로 정리됩니다.</div>';
         return;
       }
 
@@ -1334,8 +1225,6 @@
       document.getElementById('btnSaveSettings').addEventListener('click', saveSettings);
       document.getElementById('btnClearChat').addEventListener('click', function() {
         document.getElementById('chatStream').innerHTML = '';
-        currentUserBubble = null;
-        currentAiBubble = null;
       });
       document.getElementById('btnClearLogs').addEventListener('click', function() {
         actionLogs = [];
