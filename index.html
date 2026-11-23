@@ -41,7 +41,7 @@
       <div class="flex items-center gap-2.5">
         <span class="text-lg sm:text-xl font-black tracking-wide text-[#E50914]">RUN-VIS</span>
         <span class="px-1.5 py-0.5 rounded bg-[#E50914]/20 border border-[#E50914]/50 text-[10px] font-black text-[#ff6b72]">LIVE</span>
-        <span class="text-xs text-[#B3B3B3] hidden sm:inline">이어폰 최적화 · 자가 교정 · 유튜브</span>
+        <span class="text-xs text-[#B3B3B3] hidden sm:inline">이어폰 최적화 · 음소거 유지 · 자가 교정 · 유튜브</span>
       </div>
 
       <div class="flex items-center gap-2">
@@ -65,7 +65,7 @@
     <section class="bg-[#222222] border border-[#333333] rounded-lg p-4 sm:p-5 space-y-3.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini Live · 진화형 비서</span>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#B3B3B3]">Gemini 3.8 Live</span>
           <span id="jsReadyBadge" class="text-[11px] px-2 py-0.5 rounded bg-[#141414] border border-[#4ade80]/50 text-[#4ade80] font-bold">
             자가 교정 ON
           </span>
@@ -100,7 +100,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">안정화 오디오 · 이어폰 모드 · 자가 교정 · 유튜브</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">이어폰 모드 · 음소거 유지 · 자가 교정 · 유튜브</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -187,7 +187,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              음성 전송 안정화가 완료되었습니다! 바로 말씀해 보시고, 이어폰 사용 시 상단 [🎧 이어폰 모드]를 켜고 시작해 주세요.
+              준비 완료되었습니다! 잠깐 자리를 비우실 땐 [마이크 끄기]를 눌러두시면 자동 재접속이 되어도 음소거가 유지되어 요금이 나가지 않습니다.
             </div>
           </div>
         </div>
@@ -311,7 +311,7 @@
   <div id="toastBox" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-md bg-[#2a2a2a] border border-[#444444] text-xs font-bold text-white shadow-lg opacity-0 pointer-events-none transition-opacity duration-200"></div>
 
   <script>
-    var DEFAULT_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
+    var DEFAULT_LIVE_MODEL = 'gemini-3.8-live';
     var SEARCH_MODEL = 'gemini-2.5-flash';
     var DEFAULT_VOICE = 'Leda';
     var DEFAULT_MEMORY_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzhnbboeMK6K4ptPCkxRv1kr4g6G211pTn6cTslYI3iJIom3NggkEkRVKlBbbUyxj6X/exec';
@@ -661,7 +661,7 @@
         badge.className = 'px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '안정화 오디오 · 이어폰 모드 · 자가 교정 · 유튜브';
+        sub.textContent = '이어폰 모드 · 음소거 유지 · 자가 교정 · 유튜브';
         swBadge.textContent = 'OFF';
         swBadge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
@@ -695,13 +695,23 @@
       volWrap.classList.remove('hidden');
 
       if (phase === 'LISTENING') {
-        dot.className = 'w-2 h-2 rounded-full bg-[#E50914] animate-ping';
-        label.textContent = '듣는중';
-        label.className = 'text-white font-bold';
-        pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold';
-        badge.textContent = '🎤 듣는중';
-        badge.className = 'px-2.5 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold text-[#ff6b72]';
-        statusEl.textContent = customStatus || '원장님 말씀을 듣고 있습니다... 바로 말씀해 주세요.';
+        if (isMuted) {
+          dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+          label.textContent = '음소거됨';
+          label.className = 'text-amber-300 font-bold';
+          pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#262212] border border-amber-500/60 text-xs font-bold';
+          badge.textContent = '🔇 음소거 유지';
+          badge.className = 'px-2.5 py-1 rounded-full bg-[#262212] border border-amber-500/60 text-xs font-bold text-amber-300';
+          statusEl.textContent = customStatus || '🔇 마이크 음소거 중 (오디오 전송 중단 · 요금 0원 대기 상태)';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-[#E50914] animate-ping';
+          label.textContent = '듣는중';
+          label.className = 'text-white font-bold';
+          pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold';
+          badge.textContent = '🎤 듣는중';
+          badge.className = 'px-2.5 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold text-[#ff6b72]';
+          statusEl.textContent = customStatus || '원장님 말씀을 듣고 있습니다... 바로 말씀해 주세요.';
+        }
       } else if (phase === 'THINKING') {
         dot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse';
         label.textContent = '생각중';
@@ -743,6 +753,9 @@
         stopLiveSession();
       } else {
         userEndedSession = false;
+        isMuted = false;
+        document.getElementById('muteBtnTitle').textContent = '마이크 끄기';
+        document.getElementById('muteBtnSub').textContent = '일시 음소거';
         startLiveSession(false);
       }
     }
@@ -763,7 +776,6 @@
         if (audioCtx.state === 'suspended') await audioCtx.resume();
         nextPlayTime = 0;
 
-        // 이어폰 모드일 때만 <audio> 태그로 출력 라우팅 고정
         if (isEarphoneMode) {
           outputDest = audioCtx.createMediaStreamDestination();
           var remoteAudio = document.getElementById('remoteAudio');
@@ -1092,7 +1104,7 @@
         }
 
         var b64 = arrayBufferToBase64(pcm16.buffer);
-       ws.send(JSON.stringify({
+        ws.send(JSON.stringify({
           realtimeInput: {
             audio: {
               mimeType: 'audio/pcm;rate=16000',
@@ -1109,12 +1121,14 @@
     async function handleServerMessage(msg) {
       if (msg.setupComplete) {
         isLiveConnected = true;
-        isMuted = false;
         userWasSpeaking = false;
         bargeInStreak = 0;
         serverTurnDone = true;
         suppressOldAudioUntil = 0;
-        setAiPhase('LISTENING', isEarphoneMode ? '🎧 이어폰 연결 완료! 바로 말씀해 주세요.' : '🎤 연결 완료! 바로 말씀해 주세요.');
+        var readyMsg = isMuted
+          ? '🔇 음소거 상태가 유지되었습니다. (오디오 전송 중단 · 요금 0원 대기 중)'
+          : (isEarphoneMode ? '🎧 이어폰 연결 완료! 바로 말씀해 주세요.' : '🎤 연결 완료! 바로 말씀해 주세요.');
+        setAiPhase('LISTENING', readyMsg);
         startMicStreaming();
         return;
       }
@@ -1326,11 +1340,13 @@
       if (isMuted) {
         t.textContent = '마이크 켜기';
         s.textContent = '현재 음소거됨';
-        showToast('마이크가 음소거되었습니다.');
+        if (isLiveConnected) setAiPhase('LISTENING');
+        showToast('🔇 마이크 음소거됨 (재접속 시에도 유지됩니다)');
       } else {
         t.textContent = '마이크 끄기';
         s.textContent = '일시 음소거';
-        showToast('마이크가 다시 켜졌습니다.');
+        if (isLiveConnected) setAiPhase('LISTENING');
+        showToast('🎤 마이크가 다시 켜졌습니다.');
       }
     }
 
