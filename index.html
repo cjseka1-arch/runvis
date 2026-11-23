@@ -1092,12 +1092,12 @@
         }
 
         var b64 = arrayBufferToBase64(pcm16.buffer);
-        ws.send(JSON.stringify({
+       ws.send(JSON.stringify({
           realtimeInput: {
-            mediaChunks: [{
+            audio: {
               mimeType: 'audio/pcm;rate=16000',
               data: b64
-            }]
+            }
           }
         }));
       };
