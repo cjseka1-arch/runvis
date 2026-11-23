@@ -1103,11 +1103,10 @@
       };
 
       // 무음 GainNode를 거쳐 연결해 마이크 소리가 스피커로 새지 않게 함
-      silentGainNode = audioCtx.createGain();
-      silentGainNode.gain.value = 0;
+      
       micSource.connect(processorNode);
-      processorNode.connect(silentGainNode);
-      silentGainNode.connect(audioCtx.destination);
+      processorNode.connect(audioCtx.destination);
+    
     }
 
     async function handleServerMessage(msg) {
