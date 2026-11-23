@@ -85,7 +85,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">잡음 차단 기본 8 · 2048 고속 버퍼 · 유튜브 재생 지원</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">잡음 차단 기본 8 · 2048 고속 버퍼 · 유튜브 API v3 연동</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -172,7 +172,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              유튜브 재생 권한이 추가되었습니다! "임영웅 노래 틀어줘", "노래 꺼줘"처럼 말씀해 보세요.
+              YouTube Data API v3 연동이 완료되었습니다! [설정]에서 유튜브 API 키를 입력한 뒤 "아이유 노래 틀어줘", "노래 꺼줘"라고 말씀해 보세요.
             </div>
           </div>
         </div>
@@ -240,6 +240,16 @@
           id="modalApiKeyInput"
           type="text"
           placeholder="AIzaSy... (내 기기에만 저장됩니다)"
+          class="w-full bg-[#141414] border border-[#333333] rounded-md px-3 py-2 text-xs text-white outline-none"
+        />
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="block text-xs font-bold text-[#B3B3B3]">YouTube Data API Key (유튜브 재생용)</label>
+        <input
+          id="modalYoutubeKeyInput"
+          type="text"
+          placeholder="AIzaSy... (YouTube Data API v3 키)"
           class="w-full bg-[#141414] border border-[#333333] rounded-md px-3 py-2 text-xs text-white outline-none"
         />
       </div>
@@ -328,6 +338,9 @@
 
     function getApiKey() {
       try { return (localStorage.getItem('runvis_api_key') || '').replace(/\s+/g, '').trim(); } catch (e) { return ''; }
+    }
+    function getYoutubeApiKey() {
+      try { return (localStorage.getItem('runvis_youtube_api_key') || '').replace(/\s+/g, '').trim(); } catch (e) { return ''; }
     }
     function getMemoryWebAppUrl() {
       try {
@@ -442,21 +455,6 @@
       });
     }
 
-    function extractYoutubeVideoId(text) {
-      if (!text) return null;
-      var patterns = [
-        /(?:youtube\.com\/watch\?[^\s]*v=)([a-zA-Z0-9_-]{11})/,
-        /(?:youtu\.be\/)([a-zA-Z0-9_-]{11})/,
-        /(?:youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-        /(?:youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/
-      ];
-      for (var i = 0; i < patterns.length; i++) {
-        var m = String(text).match(patterns[i]);
-        if (m && m[1]) return m[1];
-      }
-      return null;
-    }
-
     function renderYoutubeMiniPlayer(videoId, title, fallbackQuery) {
       var section = document.getElementById('youtubePlayerSection');
       var titleEl = document.getElementById('youtubeTitleText');
@@ -501,55 +499,41 @@
       var trimmed = (query || '').trim();
       if (!trimmed) return '재생할 노래나 영상 검색어가 없습니다.';
 
+      var ytKey = getYoutubeApiKey();
+      if (!ytKey) {
+        showToast('우측 상단 [설정]에서 YouTube Data API 키를 먼저 입력해 주세요!');
+        return '설정 창에 YouTube API 키가 아직 입력되지 않았습니다. 원장님께 설정에서 유튜브 API 키를 입력해 달라고 안내하세요.';
+      }
+
       cancelOngoingSearch();
       searchAbortController = new AbortController();
       var signal = searchAbortController.signal;
 
-      var apiKey = getApiKey();
-      var url = ['https:', '', 'generativelanguage.googleapis.com', 'v1beta', 'models', SEARCH_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey)].join('/');
+      var url = 'https://www.googleapis.com/youtube/v3/search'
+        + '?part=snippet'
+        + '&type=video'
+        + '&videoEmbeddable=true'
+        + '&maxResults=1'
+        + '&q=' + encodeURIComponent(trimmed)
+        + '&key=' + encodeURIComponent(ytKey);
 
       try {
         setAiPhase('SEARCHING', '🎵 유튜브 검색 중: "' + trimmed + '"');
-        var res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: signal,
-          body: JSON.stringify({
-            contents: [{
-              role: 'user',
-              parts: [{
-                text: '유튜브에서 "' + trimmed + '" 공식 뮤직비디오나 음원 영상을 하나 찾아서 반드시 정확한 YouTube watch URL(https://www.youtube.com/watch?v=...)과 영상 제목을 알려줘.'
-              }]
-            }],
-            tools: [{ google_search: {} }],
-            generationConfig: { temperature: 0.1, maxOutputTokens: 200, thinkingConfig: { thinkingBudget: 0 } }
-          })
-        });
-
+        var res = await fetch(url, { method: 'GET', signal: signal });
         var data = await res.json();
         searchAbortController = null;
 
-        var candidate = data.candidates && data.candidates[0];
-        var parts = (candidate && candidate.content && candidate.content.parts) || [];
-        var answerText = parts.map(function(p) { return p.text || ''; }).join('\n');
-
-        var videoId = extractYoutubeVideoId(answerText);
-        var foundTitle = trimmed;
-
-        // 본문에 URL이 없거나 제목 보강을 위해 구글 검색 groundingChunks 함께 탐색
-        var chunks = (candidate && candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks) || [];
-        for (var i = 0; i < chunks.length; i++) {
-          var web = chunks[i] && chunks[i].web;
-          if (!web) continue;
-          var chunkVid = extractYoutubeVideoId(web.uri || '');
-          if (chunkVid) {
-            if (!videoId) videoId = chunkVid;
-            if (web.title) {
-              foundTitle = web.title.replace(/\s*-\s*YouTube\s*$/i, '').trim();
-            }
-            break;
-          }
+        if (data.error) {
+          return '유튜브 API 오류: ' + (data.error.message || '키 설정을 확인해 주세요.');
         }
+
+        var item = data.items && data.items[0];
+        var videoId = item && item.id && item.id.videoId;
+        var rawTitle = (item && item.snippet && item.snippet.title) || trimmed;
+
+        var dec = document.createElement('textarea');
+        dec.innerHTML = rawTitle;
+        var foundTitle = dec.value;
 
         setAiPhase('THINKING', '유튜브 준비 완료!');
 
@@ -559,8 +543,8 @@
           return '유튜브에서 "' + foundTitle + '" 영상을 찾아 화면 플레이어에서 재생을 시작했습니다. 짧게 안내하세요.';
         } else {
           renderYoutubeMiniPlayer(null, trimmed + ' 검색 결과', trimmed);
-          appendChat('assistant', '⚠️ 영상 ID를 못 찾아 유튜브 검색 링크를 띄웠습니다: ' + trimmed);
-          return '정확한 영상 주소를 찾지 못해 화면에 유튜브 검색 링크를 띄워두었습니다.';
+          appendChat('assistant', '⚠️ 재생 가능한 영상을 못 찾아 검색 링크를 띄웠습니다: ' + trimmed);
+          return '재생 가능한 영상을 찾지 못해 화면에 유튜브 검색 링크를 띄워두었습니다.';
         }
       } catch (err) {
         searchAbortController = null;
@@ -621,7 +605,7 @@
         badge.className = 'px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '잡음 차단 기본 8 · 2048 고속 버퍼 · 유튜브 재생 지원';
+        sub.textContent = '잡음 차단 기본 8 · 2048 고속 버퍼 · 유튜브 API v3 연동';
         swBadge.textContent = 'OFF';
         swBadge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
@@ -1357,6 +1341,7 @@
 
     function openSettingsModal() {
       document.getElementById('modalApiKeyInput').value = getApiKey();
+      document.getElementById('modalYoutubeKeyInput').value = getYoutubeApiKey();
       document.getElementById('modalMemoryUrlInput').value = getMemoryWebAppUrl();
       document.getElementById('modalVoiceSelect').value = getVoiceName();
       document.getElementById('modalModelInput').value = getLiveModel();
@@ -1369,11 +1354,13 @@
 
     function saveSettings() {
       var k = document.getElementById('modalApiKeyInput').value.replace(/\s+/g, '').trim();
+      var yk = document.getElementById('modalYoutubeKeyInput').value.replace(/\s+/g, '').trim();
       var memUrl = document.getElementById('modalMemoryUrlInput').value.trim();
       var v = document.getElementById('modalVoiceSelect').value;
       var m = document.getElementById('modalModelInput').value.trim();
       try {
         if (k) localStorage.setItem('runvis_api_key', k);
+        localStorage.setItem('runvis_youtube_api_key', yk);
         localStorage.setItem('runvis_memory_webapp_url', memUrl || DEFAULT_MEMORY_WEBAPP_URL);
         if (v) localStorage.setItem('runvis_live_voice', v);
         if (m) localStorage.setItem('runvis_live_model', m);
