@@ -25,6 +25,11 @@
       border-color: #4ade80 !important;
       color: #4ade80 !important;
     }
+    .standby-active {
+      background-color: #172038 !important;
+      border-color: #60a5fa !important;
+      color: #93c5fd !important;
+    }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: #141414; }
     ::-webkit-scrollbar-thumb { background: #333333; border-radius: 3px; }
@@ -41,7 +46,7 @@
       <div class="flex items-center gap-2.5">
         <span class="text-lg sm:text-xl font-black tracking-wide text-[#E50914]">RUN-VIS</span>
         <span class="px-1.5 py-0.5 rounded bg-[#E50914]/20 border border-[#E50914]/50 text-[10px] font-black text-[#ff6b72]">LIVE</span>
-        <span class="text-xs text-[#B3B3B3] hidden sm:inline">이어폰 최적화 · 음소거 유지 · 자가 교정 · 유튜브</span>
+        <span class="text-xs text-[#B3B3B3] hidden sm:inline">호출 자동기상 · 이어폰 최적화 · 자가 교정 · 유튜브</span>
       </div>
 
       <div class="flex items-center gap-2">
@@ -73,7 +78,12 @@
             기억 스캔 중...
           </span>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            id="btnStandbyMode"
+            class="px-2.5 py-1 rounded-full bg-[#141414] border border-[#444444] text-xs font-bold text-[#CCCCCC] hover:text-white cursor-pointer transition"
+          >💤 호출 대기 OFF</button>
           <button
             type="button"
             id="btnEarphoneMode"
@@ -100,7 +110,7 @@
             </span>
             <div class="text-left">
               <div id="liveBtnTitle" class="text-base font-bold text-white">실시간 음성 대화 시작</div>
-              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">이어폰 모드 · 음소거 유지 · 자가 교정 · 유튜브</div>
+              <div id="liveBtnSub" class="text-xs text-[#B3B3B3]">호출 대기 ON 시 "런비스!"로 자동 연결 · 20초 무음 자동 종료</div>
             </div>
           </div>
           <span id="liveSwitchBadge" class="px-3 py-1 rounded bg-[#2a2a2a] text-xs font-bold text-[#999999] shrink-0">OFF</span>
@@ -121,7 +131,7 @@
         <div class="flex items-center justify-between gap-2 text-xs">
           <div class="flex items-center gap-2 min-w-0">
             <span class="text-[#E50914] font-bold shrink-0">상태:</span>
-            <span id="liveStatusText" class="text-[#DDDDDD] truncate">[실시간 음성 대화 시작] 버튼을 눌러 런비스와 통화를 시작하세요.</span>
+            <span id="liveStatusText" class="text-[#DDDDDD] truncate">[실시간 음성 대화 시작] 또는 노트북에서는 [💤 호출 대기 ON]을 눌러보세요.</span>
           </div>
         </div>
 
@@ -187,7 +197,7 @@
           <div class="flex flex-col items-start space-y-1">
             <span class="text-[11px] font-bold text-[#E50914]">RUN-VIS LIVE</span>
             <div class="bg-[#181818] border border-[#333333] rounded-lg rounded-tl-none px-3.5 py-2.5 text-xs sm:text-sm text-[#EAEAEA] max-w-[92%] leading-relaxed">
-              준비 완료되었습니다! 잠깐 자리를 비우실 땐 [마이크 끄기]를 눌러두시면 자동 재접속이 되어도 음소거가 유지되어 요금이 나가지 않습니다.
+              노트북에서는 [💤 호출 대기 ON]과 [🎧 이어폰 모드 ON]을 켜두세요. 평소엔 요금 0원으로 대기하다가 "런비스!" 부르면 바로 연결되고, 대화가 끝나면 자동으로 대기 상태로 돌아갑니다.
             </div>
           </div>
         </div>
@@ -316,13 +326,25 @@
     var DEFAULT_VOICE = 'Leda';
     var DEFAULT_MEMORY_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzhnbboeMK6K4ptPCkxRv1kr4g6G211pTn6cTslYI3iJIom3NggkEkRVKlBbbUyxj6X/exec';
 
+    // 호출 대기 모드 설정 (PC 크롬용)
+    var WAKE_KEYWORDS = ['런비스', '럼비스', '넘비스', '런비수', '런비', '비스야', '비서야'];
+    var IDLE_TIMEOUT_MS = 20000; // 20초 무음 시 자동 종료 후 0원 대기 전환
+
     var ws = null;
     var isLiveConnected = false;
     var isMuted = false;
     var isEarphoneMode = false;
+    var isStandbyMode = false;
     var userEndedSession = false;
     var reconnectTimer = null;
     var thinkingTimeout = null;
+
+    var wakeRecognition = null;
+    var wakeRestartTimer = null;
+    var isWakeListening = false;
+    var lastActivityTime = Date.now();
+    var idleCheckInterval = null;
+    var pendingSleepAfterSpeech = false;
 
     var audioCtx = null;
     var outputDest = null;
@@ -372,6 +394,149 @@
     }
     function getLiveModel() {
       try { return (localStorage.getItem('runvis_live_model') || DEFAULT_LIVE_MODEL).trim(); } catch (e) { return DEFAULT_LIVE_MODEL; }
+    }
+
+    function updateStandbyModeUI() {
+      var btn = document.getElementById('btnStandbyMode');
+      if (!btn) return;
+      if (isStandbyMode) {
+        btn.textContent = '💤 호출 대기 ON';
+        btn.classList.add('standby-active');
+      } else {
+        btn.textContent = '💤 호출 대기 OFF';
+        btn.classList.remove('standby-active');
+      }
+    }
+
+    function toggleStandbyMode() {
+      var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!isStandbyMode && !SpeechRec) {
+        showToast('이 브라우저에서는 호출 대기 기능을 지원하지 않습니다. (크롬 사용 권장)');
+        return;
+      }
+
+      isStandbyMode = !isStandbyMode;
+      try { localStorage.setItem('runvis_standby_mode', isStandbyMode ? '1' : '0'); } catch (e) {}
+      updateStandbyModeUI();
+
+      if (isStandbyMode) {
+        if (!isLiveConnected && !ws) {
+          startWakeWordListening();
+        } else {
+          lastActivityTime = Date.now();
+        }
+        showToast('💤 호출 대기 ON! 평소엔 요금 0원, "런비스!" 부르면 자동 연결됩니다.');
+      } else {
+        stopWakeWordListening();
+        if (!isLiveConnected && !ws) {
+          setAiPhase('OFF');
+        }
+        showToast('호출 대기 모드를 껐습니다. (수동 버튼 모드)');
+      }
+    }
+
+    function startWakeWordListening(customStatus) {
+      if (!isStandbyMode || isLiveConnected || ws) return;
+      var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) return;
+
+      stopWakeWordListening();
+
+      try {
+        wakeRecognition = new SpeechRec();
+        wakeRecognition.lang = 'ko-KR';
+        wakeRecognition.continuous = true;
+        wakeRecognition.interimResults = true;
+
+        wakeRecognition.onstart = function() {
+          isWakeListening = true;
+          if (!isLiveConnected && !ws) {
+            setAiPhase('STANDBY', customStatus || '💤 요금 0원 대기 중 — "런비스!"라고 부르면 바로 연결됩니다.');
+          }
+        };
+
+        wakeRecognition.onresult = function(event) {
+          if (!isStandbyMode || isLiveConnected || ws) return;
+          for (var i = event.resultIndex; i < event.results.length; i++) {
+            var transcript = (event.results[i][0].transcript || '').replace(/\s+/g, '');
+            if (!transcript) continue;
+
+            var matched = WAKE_KEYWORDS.some(function(kw) {
+              return transcript.indexOf(kw) !== -1;
+            });
+
+            if (matched) {
+              stopWakeWordListening();
+              appendChat('system', '🎙️ 호출 감지 ("런비스") → 자동 연결 중...');
+              userEndedSession = false;
+              isMuted = false;
+              pendingSleepAfterSpeech = false;
+              document.getElementById('muteBtnTitle').textContent = '마이크 끄기';
+              document.getElementById('muteBtnSub').textContent = '일시 음소거';
+              startLiveSession(false);
+              return;
+            }
+          }
+        };
+
+        wakeRecognition.onerror = function(e) {
+          isWakeListening = false;
+          if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) {
+            isStandbyMode = false;
+            try { localStorage.setItem('runvis_standby_mode', '0'); } catch (err) {}
+            updateStandbyModeUI();
+            setAiPhase('OFF', '마이크 권한이 거부되어 호출 대기 모드가 꺼졌습니다.');
+            showToast('브라우저 마이크 권한을 허용해 주세요.');
+          }
+        };
+
+        wakeRecognition.onend = function() {
+          isWakeListening = false;
+          if (isStandbyMode && !isLiveConnected && !ws) {
+            clearTimeout(wakeRestartTimer);
+            wakeRestartTimer = setTimeout(function() {
+              if (isStandbyMode && !isLiveConnected && !ws) {
+                startWakeWordListening();
+              }
+            }, 350);
+          }
+        };
+
+        wakeRecognition.start();
+      } catch (err) {
+        console.warn('호출 대기 시작 오류:', err);
+      }
+    }
+
+    function stopWakeWordListening() {
+      clearTimeout(wakeRestartTimer);
+      wakeRestartTimer = null;
+      isWakeListening = false;
+      if (wakeRecognition) {
+        try {
+          wakeRecognition.onend = null;
+          wakeRecognition.onerror = null;
+          wakeRecognition.onresult = null;
+          wakeRecognition.stop();
+        } catch (e) {}
+        wakeRecognition = null;
+      }
+    }
+
+    function enterStandbyFromLive(reasonMsg) {
+      pendingSleepAfterSpeech = false;
+      userEndedSession = true;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      stopLiveSession();
+      if (reasonMsg) appendChat('system', '💤 ' + reasonMsg);
+      if (isStandbyMode) {
+        setTimeout(function() {
+          if (isStandbyMode && !isLiveConnected && !ws) {
+            startWakeWordListening(reasonMsg || '💤 요금 0원 대기 중 — "런비스!"라고 부르면 바로 연결됩니다.');
+          }
+        }, 450);
+      }
     }
 
     function updateEarphoneModeUI() {
@@ -652,6 +817,24 @@
 
       btn.classList.remove('live-active');
 
+      if (phase === 'STANDBY') {
+        dot.className = 'w-2 h-2 rounded-full bg-blue-400 animate-pulse';
+        label.textContent = '호출 대기';
+        label.className = 'text-blue-300 font-bold';
+        pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#172038] border border-blue-500/50 text-xs font-bold';
+        badge.textContent = '💤 0원 대기중';
+        badge.className = 'px-2.5 py-1 rounded-full bg-[#172038] border border-blue-500/50 text-xs font-bold text-blue-300';
+        iconWrap.className = 'w-11 h-11 rounded-full bg-[#172038] text-blue-300 flex items-center justify-center shrink-0';
+        title.textContent = '"런비스!" 부르면 자동 연결 (수동 시작 가능)';
+        sub.textContent = '요금 0원 호출 대기 중 · 대화 종료 후 20초 무음 시 자동 복귀';
+        swBadge.textContent = '대기';
+        swBadge.className = 'px-3 py-1 rounded bg-[#172038] text-blue-300 text-xs font-bold shrink-0';
+        muteBtn.classList.add('hidden');
+        volWrap.classList.add('hidden');
+        statusEl.textContent = customStatus || '💤 요금 0원 대기 중 — "런비스!"라고 부르면 바로 연결됩니다.';
+        return;
+      }
+
       if (phase === 'OFF') {
         dot.className = 'w-2 h-2 rounded-full bg-[#666666]';
         label.textContent = '대기중';
@@ -661,12 +844,12 @@
         badge.className = 'px-2.5 py-1 rounded-full bg-[#141414] border border-[#333333] text-xs font-bold text-[#999999]';
         iconWrap.className = 'w-11 h-11 rounded-full bg-[#2a2a2a] text-white flex items-center justify-center shrink-0';
         title.textContent = '실시간 음성 대화 시작';
-        sub.textContent = '이어폰 모드 · 음소거 유지 · 자가 교정 · 유튜브';
+        sub.textContent = '호출 대기 ON 시 "런비스!"로 자동 연결 · 20초 무음 자동 종료';
         swBadge.textContent = 'OFF';
         swBadge.className = 'px-3 py-1 rounded bg-[#2a2a2a] text-[#999999] text-xs font-bold shrink-0';
         muteBtn.classList.add('hidden');
         volWrap.classList.add('hidden');
-        statusEl.textContent = customStatus || '[실시간 음성 대화 시작] 버튼을 눌러 런비스와 통화를 시작하세요.';
+        statusEl.textContent = customStatus || '[실시간 음성 대화 시작] 또는 노트북에서는 [💤 호출 대기 ON]을 눌러보세요.';
         return;
       }
 
@@ -685,7 +868,7 @@
 
       btn.classList.add('live-active');
       iconWrap.className = 'w-11 h-11 rounded-full bg-white text-[#E50914] flex items-center justify-center shrink-0';
-      title.textContent = '통화 종료하기 (LIVE 연결됨)';
+      title.textContent = isStandbyMode ? '통화 종료 → 0원 호출 대기로 돌아가기' : '통화 종료하기 (LIVE 연결됨)';
       sub.textContent = isEarphoneMode
         ? '🎧 이어폰 모드 작동 중 (이어폰으로 듣고 말하기)'
         : '🔊 스피커폰 모드 작동 중 (에코 차단 활성)';
@@ -710,7 +893,9 @@
           pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold';
           badge.textContent = '🎤 듣는중';
           badge.className = 'px-2.5 py-1 rounded-full bg-[#2a1214] border border-[#E50914] text-xs font-bold text-[#ff6b72]';
-          statusEl.textContent = customStatus || '원장님 말씀을 듣고 있습니다... 바로 말씀해 주세요.';
+          statusEl.textContent = customStatus || (isStandbyMode
+            ? '원장님 말씀을 듣고 있습니다... ("고마워/끝" 또는 20초 무음 시 0원 대기 복귀)'
+            : '원장님 말씀을 듣고 있습니다... 바로 말씀해 주세요.');
         }
       } else if (phase === 'THINKING') {
         dot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse';
@@ -747,13 +932,19 @@
 
     function toggleLiveSession() {
       if (isLiveConnected || ws || reconnectTimer) {
-        userEndedSession = true;
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-        stopLiveSession();
+        if (isStandbyMode) {
+          enterStandbyFromLive('통화를 종료하고 요금 0원 호출 대기로 전환했습니다.');
+        } else {
+          userEndedSession = true;
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+          stopLiveSession();
+        }
       } else {
+        stopWakeWordListening();
         userEndedSession = false;
         isMuted = false;
+        pendingSleepAfterSpeech = false;
         document.getElementById('muteBtnTitle').textContent = '마이크 끄기';
         document.getElementById('muteBtnSub').textContent = '일시 음소거';
         startLiveSession(false);
@@ -768,6 +959,7 @@
         return;
       }
 
+      stopWakeWordListening();
       setAiPhase('CONNECTING', isAutoReconnect ? '세션 갱신을 위해 빠르게 재접속 중...' : '독립 기억 시트 스캔 및 서버 연결 중...');
 
       try {
@@ -831,12 +1023,14 @@
             }, 300);
           } else if (!userEndedSession && e.reason) {
             appendChat('system', '연결 실패: ' + e.reason);
+            if (isStandbyMode) startWakeWordListening();
           }
         };
 
       } catch (err) {
         appendChat('system', '시작 오류: ' + err.message);
         cleanupLiveSession();
+        if (isStandbyMode) startWakeWordListening();
       }
     }
 
@@ -848,6 +1042,7 @@
         '당신은 런수학학원 원장님의 독립된 전담 AI 비서 런비스입니다. 당신이 주인공입니다. ' +
         '[초고속 단답 규칙] 망설이지 말고 즉시 첫 마디를 꺼내세요. 설명을 길게 늘이지 말고 1문장으로 짧고 경쾌하게 답하세요. ' +
         '[호출 응답 규칙] "런비스"라고 부르면 즉시 "네, 원장님!"이라고만 답하세요. ' +
+        '[통화 종료·대기 전환 규칙] 원장님이 대화를 끝내거나 쉬라고 말하면("고마워", "끝", "수고했어", "대기해", "이제 꺼", "잘 있어" 등) 반드시 end_call 함수를 호출하고 "네, 대기하겠습니다!"처럼 아주 짧게 인사하세요. ' +
         '[자가 교정 학습 규칙 - 매우 중요] 원장님이 당신의 말투, 성격, 답변 길이, 호칭, 보고 방식, 인사법 등에 대해 피드백이나 수정 요청을 하면("방금 너무 길었어", "앞으로 반말 말고 더 공손하게 해", "숫자는 끊어서 말해", "아침엔 텐션 높여줘" 등), 원장님이 "기억해 둬"라고 말하지 않아도 스스로 update_persona_rule 함수를 호출해 규칙을 영구 저장하고 즉시 그 방식대로 답하세요. ' +
         '[기억 저장 규칙] 원장님이 일반 사실이나 일정을 "기록해 둬", "기억해 둬", "저장해 둬"라고 말하면 반드시 remember_note 함수를 호출해 독립 기억 시트에 기록하고 짧게 확인 답을 하세요. ' +
         '[유튜브 재생/정지 규칙] 원장님이 특정 가수 노래, 음악, 유튜브 영상을 틀어달라고 하면 반드시 play_youtube 함수를 호출하세요. 노래나 유튜브를 꺼달라거나 멈춰달라고 하면 반드시 stop_youtube 함수를 호출하세요. ' +
@@ -888,6 +1083,11 @@
           tools: [
             {
               functionDeclarations: [
+                {
+                  name: 'end_call',
+                  description: '원장님이 대화를 끝내거나 대기하라고 할 때("고마워", "끝", "수고했어", "대기해", "꺼줘" 등) 통화를 종료하고 요금 0원 호출 대기 상태로 돌아갑니다.',
+                  parameters: { type: 'OBJECT', properties: {} }
+                },
                 {
                   name: 'update_persona_rule',
                   description: '원장님이 런비스의 말투, 성격, 답변 길이, 보고 스타일, 호칭 등에 대해 피드백이나 교정 요청을 했을 때 스스로 규칙을 정리해 독립 기억 시트에 영구 저장합니다.',
@@ -998,6 +1198,7 @@
         var parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
         var answer = parts.map(function(p) { return p.text || ''; }).join('').trim() || '검색 결과를 찾지 못했습니다.';
         searchCache.set(trimmed, answer);
+        lastActivityTime = Date.now();
         setAiPhase('THINKING', '검색 완료!');
         return answer;
       } catch (err) {
@@ -1027,6 +1228,10 @@
         var now = Date.now();
         var activeThreshold = Math.max(isEarphoneMode ? 2 : 4, noiseGateLevel);
         var isVoiceDetected = (vol >= activeThreshold);
+
+        if (isVoiceDetected) {
+          lastActivityTime = now;
+        }
 
         if (noiseGateLevel === 0) {
           gateOpenUntil = now + 400;
@@ -1073,6 +1278,7 @@
               bargeInStreak = 0;
               userWasSpeaking = true;
               lastUserVoiceTime = now;
+              lastActivityTime = now;
               setAiPhase('LISTENING', '🎤 원장님 말씀을 듣고 있습니다...');
             } else {
               return;
@@ -1125,6 +1331,9 @@
         bargeInStreak = 0;
         serverTurnDone = true;
         suppressOldAudioUntil = 0;
+        pendingSleepAfterSpeech = false;
+        lastActivityTime = Date.now();
+
         var readyMsg = isMuted
           ? '🔇 음소거 상태가 유지되었습니다. (오디오 전송 중단 · 요금 0원 대기 중)'
           : (isEarphoneMode ? '🎧 이어폰 연결 완료! 바로 말씀해 주세요.' : '🎤 연결 완료! 바로 말씀해 주세요.');
@@ -1134,12 +1343,16 @@
       }
 
       if (msg.toolCall && msg.toolCall.functionCalls) {
+        lastActivityTime = Date.now();
         var responses = [];
         for (var i = 0; i < msg.toolCall.functionCalls.length; i++) {
           var fc = msg.toolCall.functionCalls[i];
           var resObj = { result: '완료되었습니다.' };
 
-          if (fc.name === 'update_persona_rule') {
+          if (fc.name === 'end_call') {
+            pendingSleepAfterSpeech = true;
+            resObj = { result: '원장님께 "네, 대기하겠습니다!"라고 아주 짧게 인사하고 마치세요. 인사가 끝나면 자동으로 통화가 종료됩니다.' };
+          } else if (fc.name === 'update_persona_rule') {
             var pArgs = fc.args || {};
             var ruleText = pArgs.rule || '';
             var ruleCat = pArgs.category || '자가교정';
@@ -1196,6 +1409,7 @@
           stopAllPlayback();
           suppressOldAudioUntil = 0;
           serverTurnDone = true;
+          lastActivityTime = Date.now();
           if (isLiveConnected) setAiPhase('LISTENING');
         }
 
@@ -1204,6 +1418,7 @@
             if (part.inlineData && part.inlineData.data) {
               if (Date.now() < suppressOldAudioUntil) return;
               serverTurnDone = false;
+              lastActivityTime = Date.now();
               if (aiPhase !== 'SPEAKING') setAiPhase('SPEAKING');
               playPcm24kAudio(part.inlineData.data);
             }
@@ -1213,8 +1428,15 @@
         if (sc.turnComplete) {
           serverTurnDone = true;
           suppressOldAudioUntil = 0;
+          lastActivityTime = Date.now();
           if (activeSources.length === 0 && isLiveConnected) {
-            setAiPhase('LISTENING');
+            if (pendingSleepAfterSpeech) {
+              setTimeout(function() {
+                enterStandbyFromLive('대화 종료 요청으로 요금 0원 호출 대기로 전환했습니다.');
+              }, 300);
+            } else {
+              setAiPhase('LISTENING');
+            }
           }
         }
       }
@@ -1280,8 +1502,15 @@
       source.onended = function() {
         var idx = activeSources.indexOf(source);
         if (idx !== -1) activeSources.splice(idx, 1);
-        if (activeSources.length === 0 && serverTurnDone && isLiveConnected && aiPhase === 'SPEAKING') {
-          setAiPhase('LISTENING');
+        lastActivityTime = Date.now();
+        if (activeSources.length === 0 && serverTurnDone && isLiveConnected) {
+          if (pendingSleepAfterSpeech) {
+            setTimeout(function() {
+              enterStandbyFromLive('대화 종료 요청으로 요금 0원 호출 대기로 전환했습니다.');
+            }, 300);
+          } else if (aiPhase === 'SPEAKING') {
+            setAiPhase('LISTENING');
+          }
         }
       };
     }
@@ -1330,11 +1559,12 @@
       userWasSpeaking = false;
       bargeInStreak = 0;
       suppressOldAudioUntil = 0;
-      if (userEndedSession) setAiPhase('OFF');
+      if (userEndedSession && !isStandbyMode) setAiPhase('OFF');
     }
 
     function toggleMute() {
       isMuted = !isMuted;
+      lastActivityTime = Date.now();
       var t = document.getElementById('muteBtnTitle');
       var s = document.getElementById('muteBtnSub');
       if (isMuted) {
@@ -1358,13 +1588,14 @@
       input.value = '';
 
       if (!isLiveConnected || !ws || ws.readyState !== WebSocket.OPEN) {
-        showToast('먼저 [실시간 음성 대화 시작] 버튼을 눌러 연결해 주세요!');
+        showToast('먼저 [실시간 음성 대화 시작] 버튼을 누르거나 "런비스!"라고 불러주세요!');
         return;
       }
 
       stopAllPlayback();
       cancelOngoingSearch();
       suppressOldAudioUntil = 0;
+      lastActivityTime = Date.now();
 
       appendChat('user', text);
       setAiPhase('THINKING');
@@ -1496,8 +1727,29 @@
 
       try {
         isEarphoneMode = localStorage.getItem('runvis_earphone_mode') === '1';
+        isStandbyMode = localStorage.getItem('runvis_standby_mode') === '1';
       } catch (e) {}
       updateEarphoneModeUI();
+      updateStandbyModeUI();
+
+      // 호출 대기 모드가 켜져 있으면 페이지 열자마자 0원 대기 시작
+      if (isStandbyMode) {
+        startWakeWordListening();
+      }
+
+      // 20초 무음 시 자동 종료 감시 타이머 (호출 대기 모드 ON일 때만 동작)
+      idleCheckInterval = setInterval(function() {
+        if (
+          isStandbyMode &&
+          isLiveConnected &&
+          !isMuted &&
+          aiPhase === 'LISTENING' &&
+          activeSources.length === 0 &&
+          (Date.now() - lastActivityTime >= IDLE_TIMEOUT_MS)
+        ) {
+          enterStandbyFromLive('20초간 대화가 없어 요금 0원 호출 대기로 자동 전환했습니다.');
+        }
+      }, 1000);
 
       var savedGate = 0;
       try {
@@ -1513,6 +1765,7 @@
         updateNoiseGateUI(e.target.value);
       });
 
+      document.getElementById('btnStandbyMode').addEventListener('click', toggleStandbyMode);
       document.getElementById('btnEarphoneMode').addEventListener('click', toggleEarphoneMode);
       document.getElementById('liveToggleBtn').addEventListener('click', toggleLiveSession);
       document.getElementById('btnMuteMic').addEventListener('click', toggleMute);
